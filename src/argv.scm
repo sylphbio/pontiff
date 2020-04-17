@@ -74,7 +74,7 @@
     (declare artifact-name (if (string? (alist-ref artifact-type args))
                                (string->symbol (alist-ref artifact-type args))
                                project-name))
-    (maybe->either (ix:build 'pontiff:argv:init :project-name project-name
+    (maybe->either (ix:build 'pontiff:init:argv :project-name project-name
                                                 :artifact-type (symbol-append 'pontiff: artifact-type)
                                                 :artifact-name artifact-name)
                    `(1 . "pontiff error: failed to build argv ix"))))
@@ -104,7 +104,7 @@
     ; static flag is only meaningful for executables because libraries always build both
     (to-either (not (and (alist-ref 'static args) (any* library? artifacts)))
                `(1 . "pontiff error: cannot specify --static for library"))
-    (maybe->either (ix:build 'pontiff:argv:build :artifacts artifacts
+    (maybe->either (ix:build 'pontiff:build:argv :artifacts artifacts
                                                  :dry-run (alist-ref 'dry-run args)
                                                  :static (alist-ref 'static args)
                                                  :verbose (alist-ref 'verbose args))

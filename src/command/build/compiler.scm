@@ -1,4 +1,4 @@
-(module compiler *
+(module command.build.compiler *
 
 (import scheme)
 (import chicken.base)

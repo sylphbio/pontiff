@@ -26,16 +26,17 @@
 ; whereas before I would find all files and then convert to module names
 (define (main)
   (state:init)
+
   (define ret (do/m <either>
     (args <- (argv:process (command-line-arguments)))
     (return (printf "MAZ args:\n~A\n" (stringify:ix args)))
-    (declare arg-tag (ix:ident->tag ((^.! ident) args)))
-    (cmd <- (maybe->either (command:tag->function arg-tag)
-                           `(1 . ,(<> "pontiff error: unknown command " (symbol->string arg-tag)))))
-    ; XXX make commands all eithers?
-    (return (cmd args))))
+    (command:dispatch args)))
+
+  (printf "MAZ accessing ret: ~S\n" ret)
+
   (when (left? ret) (printf (<> (cdadr ret) "\n"))
                     (exit (caadr ret)))
+
   (exit 0))
 
 (main)

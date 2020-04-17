@@ -1,4 +1,4 @@
-(module template *
+(module command.init.template *
 
 (import scheme)
 (import chicken.base)

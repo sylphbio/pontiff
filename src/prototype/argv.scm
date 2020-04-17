@@ -4,19 +4,19 @@
 (import chicken.base)
 (import chicken.type)
 
-(define init `(pontiff:argv:init :project-name symbol
+(define init `(pontiff:init:argv :project-name symbol
                                  :artifact-type (enum pontiff:executable pontiff:library)
                                  :artifact-name symbol))
 
-(define build `(pontiff:argv:build :artifacts (list (sum (sexp pontiff:executable) (sexp pontiff:library)))
+(define build `(pontiff:build:argv :artifacts (list (sum (sexp pontiff:executable) (sexp pontiff:library)))
                                    :dry-run boolean
                                    :static boolean
                                    :verbose boolean))
 
-(define run `(pontiff:argv:run :artifact symbol))
+(define run `(pontiff:run:argv :artifact symbol))
 
-(define test `(pontiff:argv:test :test-type (enum unit integration all)))
+(define test `(pontiff:test:argv :test-type (enum unit integration all)))
 
-(define clean `(pontiff:argv:clean))
+(define clean `(pontiff:clean:argv))
 
 )
