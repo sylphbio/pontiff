@@ -10,6 +10,7 @@
 (import tabulae.monad)
 (import ix)
 
+(import command.new)
 (import command.init)
 (import command.build)
 (import command.run)
@@ -20,6 +21,7 @@
   (define tag (ix:ident->tag ((^.! ident) argv)))
   (to-either
     (case tag
+      ((pontiff:new:argv)   (new argv))
       ((pontiff:init:argv)  (init argv))
       ((pontiff:build:argv) (build argv))
       ((pontiff:run:argv)   (run argv))

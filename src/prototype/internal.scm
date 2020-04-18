@@ -6,6 +6,8 @@
 
 (define p-module `(pontiff:module :name symbol
                                   :path string
+                                  :file-hash string
+                                  :subgraph-hash string
                                   :is-root boolean
                                   :imports (list pontiff:module:import)))
 

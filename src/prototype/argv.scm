@@ -4,9 +4,12 @@
 (import chicken.base)
 (import chicken.type)
 
-(define init `(pontiff:init:argv :project-name symbol
-                                 :artifact-type (enum pontiff:executable pontiff:library)
-                                 :artifact-name symbol))
+; XXX TODO --vcs to set vcs type, incl none
+(define new `(pontiff:new:argv :project-name symbol
+                               :artifact-type (enum pontiff:executable pontiff:library)
+                               :artifact-name symbol))
+
+(define init `(pontiff:init:argv))
 
 (define build `(pontiff:build:argv :artifacts (list (sum (sexp pontiff:executable) (sexp pontiff:library)))
                                    :dry-run boolean
@@ -17,6 +20,7 @@
 
 (define test `(pontiff:test:argv :test-type (enum unit integration all)))
 
+; XXX TODO --deps to also wipe out dependencies
 (define clean `(pontiff:clean:argv))
 
 )

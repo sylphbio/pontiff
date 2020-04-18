@@ -14,7 +14,7 @@
 (import (prefix state state:))
 (import util)
 
-(define init-grammar
+(define new-grammar
   `((executable "start project with executable artifact"
                 (single-char #\e)
                 (value (optional <name>)))
@@ -52,9 +52,9 @@
     (call-with-values (lambda () (getopt-long (cdr argv) grammar :unknown-option-handler (lambda (_) #f)))
                       (lambda (args success) (if success (return args) (fail))))))
 
-(define (init-builder argv)
+(define (new-builder argv)
   (do/m <either>
-    (args <- (maybe->either (getopt init-grammar argv)
+    (args <- (maybe->either (getopt new-grammar argv)
                             `(1 . ,usage-string)))
     ; must have project name
     (project-name <- (if (= (length (alist-ref '@ args)) 1)
@@ -74,10 +74,12 @@
     (declare artifact-name (if (string? (alist-ref artifact-type args))
                                (string->symbol (alist-ref artifact-type args))
                                project-name))
-    (maybe->either (ix:build 'pontiff:init:argv :project-name project-name
-                                                :artifact-type (symbol-append 'pontiff: artifact-type)
-                                                :artifact-name artifact-name)
+    (maybe->either (ix:build 'pontiff:new:argv :project-name project-name
+                                               :artifact-type (symbol-append 'pontiff: artifact-type)
+                                               :artifact-name artifact-name)
                    `(1 . "pontiff error: failed to build argv ix"))))
+
+(define (init-builder argv) '())
 
 (define (build-builder argv)
   (do/m <either>
@@ -118,6 +120,7 @@
 
 (define (command-builder cmd)
   (to-maybe (case cmd
+    ((new)   new-builder)
     ((init)  init-builder)
     ((build) build-builder)
     ((run)   run-builder)
@@ -133,9 +136,11 @@
 usage: pontiff <command> [<args>]
 
 commands:
-  init <project name>
-#{(lpad (usage init-grammar))}
-    by default init will start a project with one executable of the same name as the project
+  new <project name>
+#{(lpad (usage new-grammar))}
+    by default new will start a project with one executable of the same name as the project
+
+  init
 
   build
 #{(lpad (usage build-grammar))}
@@ -160,7 +165,7 @@ EOF
                `(0 . ,usage-string))
     (to-either (not (memq cmd `(-version --version)))
                `(0 . (<> "pontiff version: " state:version-string)))
-    (to-either (or (eq? cmd 'init) (state:in-project))
+    (to-either (or (eq? cmd 'new) (state:in-project))
                `(1 . "pontiff error: pontiff.ix missing, unreadable, or malformed"))
     (arg-builder <- (maybe->either (command-builder cmd)
                                    `(1 . ,(<> "pontiff error: invalid command " (symbol->string cmd)))))

@@ -24,6 +24,7 @@
     ((pontiff:module:import) p-import)
     ((pontiff:state)         p-state)
     ; command-line arguments
+    ((pontiff:new:argv)   argv:new)
     ((pontiff:init:argv)  argv:init)
     ((pontiff:build:argv) argv:build)
     ((pontiff:run:argv)   argv:run)
