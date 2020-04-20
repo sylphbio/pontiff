@@ -17,6 +17,8 @@
 
 ; XXX TODO FIXME come up with some way of simply embedding the version from pontiff.ix into the binary
 ; so I don't have to worry about updating it in two places
+; XXX UPDATE I could just like, put something like (define $VERSION asdf) up top with -prelude
+; XXX wait why can't I just have a few standard things like __VERSION__ and __LINE__ that I just do text substitution
 (define version '(0 1 0))
 (define version-string (foldl (lambda (acc n) (<> acc "." (number->string n))) (number->string (car version)) (cdr version)))
 

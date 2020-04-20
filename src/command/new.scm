@@ -5,7 +5,6 @@
 (import chicken.type)
 (import chicken.string)
 (import chicken.format)
-(import chicken.io)
 (import chicken.file)
 (import chicken.file.posix)
 (import chicken.pathname)
@@ -18,6 +17,7 @@
 
 (import (prefix state state:))
 (import (prefix command.new.template template:))
+(import util)
 
 (define (new-pfile argv)
   (define repo (ix:build! 'pontiff:repository :vcs 'git :url ""))
@@ -45,23 +45,16 @@
                       :egg-resolver 'chicken-install
                       :egg-dependencies '()))
 
-; XXX get rid of this once I implement a robust ix prettyprinter
-(define (pp-pfile pfile)
-  (define lead (<> "(" (stringify:ix (cadr pfile)) " "))
-  (define kvs (map (lambda (k/v) (<> (first* k/v) " " (second* k/v)))
-                   (chop (map stringify:ix (cddr pfile)) 2)))
-  (define pad (<> "\n" (make-string (string-length lead) #\space)))
-  (<> lead (string-intersperse kvs pad) ")\n"))
-
-(define (save-file path str)
-  (call-with-output-file path (lambda (p) (write-string str #f p))))
-
 ; XXX consider restructuring as, or at least to return, either
 (define (new argv)
   (define project-string (symbol->string ((^.!! (keyw :project-name)) argv)))
-  (printf "MAZ wtf\n") (print-call-chain) (printf "\n")
+
   (when (directory-exists? project-string)
         (printf "pontiff error: directory exists\n")
+        (exit 1))
+
+  (when (eq? ((^.!! (keyw :artifact-name)) argv) 'test)
+        (printf "pontiff error: test is a reserved module name\n")
         (exit 1))
 
   (define pfile (new-pfile argv))
@@ -87,7 +80,7 @@
                               (save-file (make-pathname tstdir a-file "scm") a-body)))
             ((^.!! (keyw :tests)) pfile))
 
-  (save-file (state:pfilename) (pp-pfile pfile))
+  (save-file (state:pfilename) (pp-ix pfile))
 
   ; XXX add a vcs flag that lets you set none, make the field optional, gate this
   (save-file ".gitignore" template:gitignore)

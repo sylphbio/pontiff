@@ -11,6 +11,7 @@
 
 (define init `(pontiff:init:argv))
 
+; XXX TODO --rebuild to ignore the hash stuff when I impl it
 (define build `(pontiff:build:argv :artifacts (list (sum (sexp pontiff:executable) (sexp pontiff:library)))
                                    :dry-run boolean
                                    :static boolean

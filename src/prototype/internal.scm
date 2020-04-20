@@ -9,10 +9,10 @@
                                   :file-hash string
                                   :subgraph-hash string
                                   :is-root boolean
-                                  :imports (list pontiff:module:import)))
+                                  :imports (list (sexp pontiff:module:import))))
 
 (define p-import `(pontiff:module:import :name symbol
-                                         :type (local dependency system)))
+                                         :type (enum local dependency system)))
 
 (define p-state `(pontiff:state :working-path string
                                 :build-dir string

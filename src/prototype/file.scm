@@ -26,8 +26,8 @@
 (define repo `(pontiff:repository :vcs (enum git) ; XXX support svn, maybe mercurial, maybe pijul
                                   :url string))
 
+; XXX eventually a way to specify version constraints
 (define dep `(pontiff:dependency :name symbol
-                                 :version (product natural natural natural) ; XXX some semver shit mb
                                  :repo (sexp pontiff:repository))) ; XXX write a service to resolve these
 
 (define exe `(pontiff:executable :name symbol

@@ -49,17 +49,17 @@
 
 (define (getopt grammar argv)
   (do/m <maybe>
-    (call-with-values (lambda () (getopt-long (cdr argv) grammar :unknown-option-handler (lambda (_) #f)))
-                      (lambda (args success) (if success (return args) (fail))))))
+    (call-with-values (lambda () (getopt-long (cdr argv) grammar :unknown-option-handler (lambda (_) #t)))
+                      (lambda (args unknown) (if (eqv? unknown #t) (fail) (return args))))))
 
 (define (new-builder argv)
   (do/m <either>
     (args <- (maybe->either (getopt new-grammar argv)
                             `(1 . ,usage-string)))
     ; must have project name
-    (project-name <- (if (= (length (alist-ref '@ args)) 1)
-                         (return (string->symbol (car (alist-ref '@ args))))
-                         (fail `(1 . "pontiff error: must specify project name"))))
+    (project-name <- (cond ((= (length (alist-ref '@ args)) 1) (return (string->symbol (car (alist-ref '@ args)))))
+                           ((= (length (alist-ref '@ args)) 0) (fail `(1 . "pontiff error: extraneous input")))
+                           (else (fail `(1 . "pontiff error: must specify project name")))))
     (to-either (and (ix:well-typed? (ix:wrap 'symbol project-name))
                     (not (any* (lambda (c) (memq c `(#\: #\.))) (string->list (symbol->string project-name)))))
                `(1 . "pontiff error: project name should be valid ix symbol without periods or colons"))
@@ -79,7 +79,8 @@
                                                :artifact-name artifact-name)
                    `(1 . "pontiff error: failed to build argv ix"))))
 
-(define (init-builder argv) '())
+(define (init-builder argv)
+  (<either>-return (ix:build! 'pontiff:init:argv)))
 
 (define (build-builder argv)
   (do/m <either>
