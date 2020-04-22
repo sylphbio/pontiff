@@ -8,6 +8,7 @@
 (import chicken.file)
 (import chicken.pathname)
 (import chicken.condition)
+(import chicken.sort)
 
 (import tabulae)
 (import tabulae.monad)
@@ -16,6 +17,7 @@
 
 (import (prefix state state:))
 (import util)
+(import graph)
 
 ; XXX alright cool dope what the fuck am I doing
 ; argv is: artifacts, dry-run, static, verbose
@@ -57,9 +59,35 @@
                   (cons ((^.!! (keyw :source-dir)) (state:file)) (drop-right* 1 mm-str)))))
         (make-pathname dir (car (take-right* 1 mm-str)) "scm")))
 
+; module object, whereas the others above operate on symbolic names
+(define (module->adjlist m)
+  `(,((^.!! (keyw :name)) m)
+    ,(map (^.!! (keyw :name)) ((^.!! (keyw :imports)) m))))
+
+; check an adjlist for cycles while build up subgraph hashes via iterative cutleaves calls
+; returned list is ordered leaves-first
+(define (sort-dag adjl objs acc)
+  (let* ((parts (cutleaves adjl))
+         (leaves (first* parts))
+         (branches (second* parts))
+         ; takes a vertex/edge pair from the adjlist, locates the object for the vertex
+         ; gathers subgraph hashes for all imports, assigns the vertex a subgraph hash
+         ; defined as hash(file hash || all import subgraph hashes sorted by name)
+         (mk-leaf-obj (lambda (v/e)
+           (let* ((find-obj (lambda (name) (find* (lambda (o) (eq? ((^.!! (keyw :name)) o) name)) objs)))
+                  (pmodule (find-obj (first* v/e)))
+                  (sg-hashes (map (lambda (e) ((^.!! (keyw :subgraph-hash)) (find-obj e)))
+                                  (sort (second* v/e) (lambda (s1 s2) (string<? (symbol->string s1) (symbol->string s2))))))
+                  (sg-hash (<> "sha1:" (string->sha1sum (apply <> `(,((^.!! (keyw :file-hash)) pmodule) ,@sg-hashes))))))
+                 ((.~! sg-hash (keyw :subgraph-hash)) pmodule)))))
+        (printf "MAZ parts: ~S\n    branches: ~S\n      leaves: ~S\n\n" parts branches leaves)
+        (cond ((null? adjl) acc)
+              ((null? leaves) (die "could not remove further leaves, remaining graph is cyclic: ~S" (map car adjl)))
+              (else (sort-dag branches objs (<> acc (map mk-leaf-obj leaves)))))))
+
 (define (load-module m)
   (letrec ((path (module-path m))
-           (hash (sha1sum (module-path m)))
+           (hash (<> "sha1:" (sha1sum (module-path m))))
            ; straightforward
            (catch-read (lambda (port)
              (condition-case (read port)
@@ -133,8 +161,12 @@
            (load-all-modules to-load^ loaded^))))
 
 (define (build-artifact artifact)
-  (define m (load-all-modules `(,((^.!! (keyw :root)) artifact)) '()))
-  (printf "MAZ m:\n  ~A\n" (string-intersperse (map stringify:ix m) "\n  ")))
+  (define modules (load-all-modules `(,((^.!! (keyw :root)) artifact)) '()))
+  (define m-adjlist (map module->adjlist modules))
+  (printf "MAZ modules:\n  ~A\n" (string-intersperse (map stringify:ix modules) "\n  "))
+  (printf "MAZ al: ~S\n" m-adjlist)
+  (define m-checked (sort-dag m-adjlist modules '()))
+  (printf "MAZ checked:\n  ~A\n" (string-intersperse (map stringify:ix m-checked) "\n  ")))
 
 (define (build argv)
   (set! dry-run ((^.!! (keyw :dry-run)) argv))

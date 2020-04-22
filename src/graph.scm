@@ -7,12 +7,13 @@
 (import chicken.format)
 
 (import tabulae)
-(import tabulae.monad)
-(import tabulae.parsec)
 
-; XXX ok what are my main things to make
-; * convert file names to module names
-; * parse import lists
-; * build module graph and convert to sorted list or leaf list
+(define (vertexes adjl)
+  (map first* adjl))
+
+; adjlist -> (leaves branches)
+(define (cutleaves adjl)
+  (let ((vv (vertexes adjl)))
+       (partition* (lambda (v/e) (null? (intersect* vv (second* v/e)))) adjl)))
 
 )
