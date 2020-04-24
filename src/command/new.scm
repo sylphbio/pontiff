@@ -80,11 +80,12 @@
                               (save-file (make-pathname tstdir a-file "scm") a-body)))
             ((^.!! (keyw :tests)) pfile))
 
-  (save-file (state:pfilename) (pp-ix pfile))
+  (state:save-pfile pfile)
 
   ; XXX add a vcs flag that lets you set none, make the field optional, gate this
   (save-file ".gitignore" template:gitignore)
-  (system* (sprintf "git init && git add ~S ~S ~S .gitignore && git commit -m 'pontiff new'" srcdir tstdir (state:pfilename)))
+  ; XXX FIXME very rude to hardcode the filename but this repo shit needs to move into state probably
+  (system* (sprintf "git init && git add ~S ~S pontiff.ix .gitignore && git commit -m 'pontiff new'" srcdir tstdir))
 
   (change-directory (state:working-path))
   (rename-file tmpdir project-string)

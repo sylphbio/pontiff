@@ -39,8 +39,8 @@
 (define (module-path m)
   (let* ((mm-str (map symbol->string (module-split m)))
          (dir (if (equal? (car mm-str) "test")
-                  (cons ((^.!! (keyw :test-dir)) (state:file)) (drop-right* 1 (cdr mm-str)))
-                  (cons ((^.!! (keyw :source-dir)) (state:file)) (drop-right* 1 mm-str)))))
+                  (cons ((^.!! (keyw :test-dir)) (state:pfile)) (drop-right* 1 (cdr mm-str)))
+                  (cons ((^.!! (keyw :source-dir)) (state:pfile)) (drop-right* 1 mm-str)))))
         (make-pathname dir (car (take-right* 1 mm-str)) "scm")))
 
 ; module object, whereas the others above operate on symbolic names
@@ -71,19 +71,12 @@
 ; after a build we write the module list to disk
 ; this loads it if it exists and filters out subgraphs unchanged since the previous build
 (define (trim-subgraphs objs)
-  (let ((prev-objs (do/m <maybe>
-          (>>= (to-maybe (load-file (make-pathname (state:build-dir) "modules" "ix")))
-                         parse:ix
-                         ix:unwrap
-                         (lambda (ml) (sequence (map ix:validate ml))))))
-        (match-kw (lambda (kw o1 o2) (equal? ((^. (keyw kw)) o1) ((^. (keyw kw)) o2)))))
-       (if (just? prev-objs)
-           (filter* (lambda (o1) (not (any* (lambda (o2) (and (match-kw :name o1 o2)
-                                                              (match-kw :is-root o1 o2)
-                                                              (match-kw :subgraph-hash o1 o2)))
-                                            (from-just prev-objs))))
-                    objs)
-           objs)))
+  (let ((match-kw (lambda (kw o1 o2) (equal? ((^. (keyw kw)) o1) ((^. (keyw kw)) o2)))))
+       (filter* (lambda (o1) (not (any* (lambda (o2) (and (match-kw :name o1 o2)
+                                                          (match-kw :is-root o1 o2)
+                                                          (match-kw :subgraph-hash o1 o2)))
+                                        (state:mfile))))
+                objs)))
 
 (define (load-module m)
   (letrec ((path (module-path m))
@@ -123,9 +116,9 @@
                     (system-libs (filter* (lambda (i) (or (memq i '(scheme r5rs r4rs srfi-4)) (module-of 'chicken i))) imports))
                     ; XXX FIXME this creates the annoying situation that the dep name must match the imported module names
                     ; perhaps init should pull down a list of library artifact roots and store that somewhere?
-                    (dep-names (map (^.!! (keyw :name)) ((^.!! (keyw :dependencies)) (state:file))))
+                    (dep-names (map (^.!! (keyw :name)) ((^.!! (keyw :dependencies)) (state:pfile))))
                     (pontiff-libs (filter* (lambda (i) (any* (lambda (d) (module-of d i)) dep-names)) imports))
-                    (egg-names (map ix:unwrap! ((^.!! (keyw :egg-dependencies)) (state:file))))
+                    (egg-names (map ix:unwrap! ((^.!! (keyw :egg-dependencies)) (state:pfile))))
                     (egg-libs (filter* (lambda (i) (any* (lambda (e) (module-of e i)) egg-names)) imports))
                     ; I don't do anything with the other lists but could be nice to sanity check things?
                     (local-imports (map (lambda (i) (ix:build! 'pontiff:module:import :name i :type 'local))
@@ -211,8 +204,13 @@
   (define modules^^ (trim-subgraphs modules^))
   (printf "done\n")
 
+  ; note we use the filtered list in compile and write the unfiltered list to modules.ix
+  ; XXX TODO FIXME modules.ix needs to be namespaced by artifact lol
+  ; either named files for each artifact or list of products idk
+  ; leave it this way for now I want to write the compiler so I can start using pontiff2
   (cond ((not dry-run) (printf "compiling ~S/~S modules\n" (length modules^^) (length modules^))
                        ; XXX compile goes here
+                       (state:save-mfile modules^)
                        (printf "~S build finished\n\n" aname))
         (else (printf "~S dryrun finished\n\n" aname))))
 

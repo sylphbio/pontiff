@@ -93,7 +93,7 @@
     (to-either (not (and (alist-ref 'all args) (alist-ref 'artifact args)))
                `(1 . "pontiff error: cannot specify --all and --artifact"))
     ; this is safe because I validate the file when state loads it
-    (declare project-artifacts ((^.!! (keyw :artifacts)) (state:file)))
+    (declare project-artifacts ((^.!! (keyw :artifacts)) (state:pfile)))
     ; as in, artifacts under consideration
     (artifacts <- (cond ((alist-ref 'artifact args)
                          (let* ((name (string->symbol (alist-ref 'artifact args)))

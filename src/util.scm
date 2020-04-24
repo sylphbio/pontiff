@@ -25,7 +25,8 @@
 (define (load-file path)
   (and (file-exists? path)
        (file-readable? path)
-       (call-with-input-file path (lambda (p) (read-string #f p)))))
+       (let ((s (call-with-input-file path (lambda (p) (read-string #f p)))))
+            (if (eof-object? s) "" s))))
 
 ; XXX get rid of this once I implement a robust ix prettyprinter
 (define (pp-ix sx)
