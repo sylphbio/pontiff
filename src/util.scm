@@ -5,6 +5,7 @@
 (import chicken.type)
 (import chicken.string)
 (import chicken.format)
+(import chicken.file)
 (import chicken.io)
 
 (import tabulae)
@@ -20,6 +21,11 @@
 
 (define (save-file path str)
   (call-with-output-file path (lambda (p) (write-string str #f p))))
+
+(define (load-file path)
+  (and (file-exists? path)
+       (file-readable? path)
+       (call-with-input-file path (lambda (p) (read-string #f p)))))
 
 ; XXX get rid of this once I implement a robust ix prettyprinter
 (define (pp-ix sx)

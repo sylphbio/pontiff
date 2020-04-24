@@ -26,6 +26,7 @@
 (define pstate '())
 
 (define (init)
+  (define build-dir ".pontiff-work")
   (ix:init prototype:prototype)
   (define pfile (do/m <maybe>
     (pfile-str <- (to-maybe (and (file-exists? (pfilename))
@@ -33,10 +34,12 @@
                                  (call-with-input-file (pfilename) (lambda (p) (read-string #f p))))))
     (pfile-ix <- (parse:ix pfile-str))
     (ix:validate-as 'pontiff pfile-ix)))
+  (define in-project (just? pfile))
+  (when (and in-project (not (directory-exists? build-dir))) (create-directory build-dir))
   (set! pstate (apply ix:build! `(pontiff:state :working-path ,(current-directory)
-                                                :build-dir ".pontiff-work"
-                                                :in-project ,(just? pfile)
-                                                ,@(if (just? pfile)
+                                                :build-dir ,build-dir
+                                                :in-project ,in-project
+                                                ,@(if in-project
                                                       `(:file ,(from-just pfile))
                                                       '())))))
 

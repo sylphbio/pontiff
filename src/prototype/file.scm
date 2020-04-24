@@ -14,7 +14,7 @@
                        :repository (sexp pontiff:repository)
                        :source-dir string
                        :test-dir string
-                       :csc-flags string
+                       :csc-flags (list string)
                        :cc (enum clang) ; XXX support gcc maybe
                        :ld (enum lld)   ; XXX support gnu ld maybe
                        :artifacts (list (sum (sexp pontiff:executable) (sexp pontiff:library)))

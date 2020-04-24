@@ -19,22 +19,6 @@
 (import util)
 (import graph)
 
-; XXX alright cool dope what the fuck am I doing
-; argv is: artifacts, dry-run, static, verbose
-; for a normal build of a given artifact (map over) we must:
-; * call init if it's never been called
-; * read in the root file, check its module name, parse its imports, hash the file contents
-; * for every import:
-;   - if system, nothing (have a static list)
-;   - if foreign, nothing (die if it's supposed to be a submodule that doesn't exist?)
-;   - otherwise assume it's local and recurse
-;     if there isn't a matching file (module name uniquely determines filename) die
-;     think about recursion scheme, we want to only visit each module once
-;   we now have an adjlist of local modules and a flat list of foreign modules
-; * check for cycles by partitioning leaves until we can't. collect subgraph hashes here
-; * abort if dry run
-; * drop into compiler TODO determine exact compile/link flow
-
 (define dry-run #f)
 (define static #f)
 (define verbose #f)
@@ -80,10 +64,26 @@
                                   (sort (second* v/e) (lambda (s1 s2) (string<? (symbol->string s1) (symbol->string s2))))))
                   (sg-hash (<> "sha1:" (string->sha1sum (apply <> `(,((^.!! (keyw :file-hash)) pmodule) ,@sg-hashes))))))
                  ((.~! sg-hash (keyw :subgraph-hash)) pmodule)))))
-        (printf "MAZ parts: ~S\n    branches: ~S\n      leaves: ~S\n\n" parts branches leaves)
         (cond ((null? adjl) acc)
               ((null? leaves) (die "could not remove further leaves, remaining graph is cyclic: ~S" (map car adjl)))
               (else (sort-dag branches objs (<> acc (map mk-leaf-obj leaves)))))))
+
+; after a build we write the module list to disk
+; this loads it if it exists and filters out subgraphs unchanged since the previous build
+(define (trim-subgraphs objs)
+  (let ((prev-objs (do/m <maybe>
+          (>>= (to-maybe (load-file (make-pathname (state:build-dir) "modules" "ix")))
+                         parse:ix
+                         ix:unwrap
+                         (lambda (ml) (sequence (map ix:validate ml))))))
+        (match-kw (lambda (kw o1 o2) (equal? ((^. (keyw kw)) o1) ((^. (keyw kw)) o2)))))
+       (if (just? prev-objs)
+           (filter* (lambda (o1) (not (any* (lambda (o2) (and (match-kw :name o1 o2)
+                                                              (match-kw :is-root o1 o2)
+                                                              (match-kw :subgraph-hash o1 o2)))
+                                            (from-just prev-objs))))
+                    objs)
+           objs)))
 
 (define (load-module m)
   (letrec ((path (module-path m))
@@ -144,7 +144,7 @@
                                    b))
                     ((functor) (die "functors are not supported"))
                     ((include include-relative) (die "toplevel includes are not supported but might be if there's a usecase"))
-                    ((require-library require-extension) (die "require isn't supported and tbh I don't know what it's even for"))
+                    ((require-library require-extension) (die "require isn't supported and tbh idk what it's even for"))
                     (else (die "unexpected toplevel before module in ~S" m)))))))
           (if (and (file-exists? path) (file-readable? path))
               (call-with-input-file path read-file)
@@ -160,13 +160,64 @@
              (to-load^ (union* (cdr to-load) (difference* m-imports (map (^.!! (keyw :name)) loaded^)))))
            (load-all-modules to-load^ loaded^))))
 
+; XXX ok cool next, we want to abort on dryrun otherwise drop into compiler
+; think about how to structure compilation before just jumping into it tho
+; ok so the main things are
+; * I want to have a cleaner way of building shellouts
+;   mb have dedicated functions that take all branching options as keyword args
+;   so we can have consistent if this then that kinda flow and sequester it from invocation logic
+; * need to manage concurrency... how is this supposed to work
+;   - we can parallelize all csc calls for a set of leaves
+;   - we can parallelize all cc calls
+;   my ideal flow is we... cut a set of leaves, fork a process for each csc call
+;   then we either
+;   - signal the main proc csc is finished and call cc in the existing csc proc
+;   - fork a cc proc in the csc proc, join back to main and deliver the cc proc pid
+;   - join back to main which forks a new cc proc
+;   the point being whatever's the cleanest way to run each batch of csc calls in parallel
+;   and then start the next batch once they're finished regardless of the progress of the cc calls
+;   we actually need the cc pids because we have to wait for all cc calls before linking
+;   it would also be polite if I had my own conditional process-run or whatever wrapper
+;   so I could provide an option to turn off parallelization for people on bad computers or whatever
+; the simplest way to handle parallelization may be...
+; * map each leaf to a process-run call, which returns a pid. keep this with a name or built cc call
+; * map each pid to a process-wait plus a second process-run that invokes cc
+; * return the list of pids to the caller, which retains them to merge with the next list
+; * once we run out of leaves we wait on all the cc pids and then call ld
+; we can get a little more efficient by cycling through csc pids with nonblocking wait, spawning ccs as we can
+; but this is premature optimization, we can assume most csc compiles take roughly the same time
+; would get a lot more mileage out of smarter graph handling (spawn a new csc once all its imports finish)
+; XXX oh we also need to check hashes. read a file named for the unit, compare
+; if hashes match just return empty list and we can flatten between the cc call
+; hmm or else we have one ix file with all hashes for all units
 (define (build-artifact artifact)
-  (define modules (load-all-modules `(,((^.!! (keyw :root)) artifact)) '()))
-  (define m-adjlist (map module->adjlist modules))
-  (printf "MAZ modules:\n  ~A\n" (string-intersperse (map stringify:ix modules) "\n  "))
-  (printf "MAZ al: ~S\n" m-adjlist)
-  (define m-checked (sort-dag m-adjlist modules '()))
-  (printf "MAZ checked:\n  ~A\n" (string-intersperse (map stringify:ix m-checked) "\n  ")))
+  (define aname ((^.!! (keyw :name)) artifact))
+  (define aroot ((^.!! (keyw :root)) artifact))
+  (printf "building ~S\n" aname)
+
+  ; one ix object per module with name/root/imports
+  (printf "* preparing modules... ")
+  (define modules (load-all-modules `(,aroot) '()))
+  (printf "done\n")
+
+  ; same modules objects, sorted leaves-first, with computed subgraph hashes
+  (printf "* checking module graph... ")
+  (define modules^ (sort-dag (map module->adjlist modules) modules '()))
+  (printf "done\n")
+
+  ; filter out modules whose local subgraphs have not changed
+  ; XXX dep refresh should always force a full rebuild in case imported macros change
+  (printf "* determining build order... ")
+  (define modules^^ (trim-subgraphs modules^))
+  (printf "done\n")
+
+  (cond ((not dry-run) (printf "compiling ~S/~S modules\n" (length modules^^) (length modules^))
+                       ; XXX compile goes here
+                       (printf "~S build finished\n\n" aname))
+        (else (printf "~S dryrun finished\n\n" aname))))
+
+
+  ;(printf "MAZ m^^:\n  ~A\n" (string-intersperse (map stringify:ix modules^^) "\n  ")))
 
 (define (build argv)
   (set! dry-run ((^.!! (keyw :dry-run)) argv))
