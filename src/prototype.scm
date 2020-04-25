@@ -22,6 +22,7 @@
     ; internal objects
     ((pontiff:module)        p-module)
     ((pontiff:module:import) p-import)
+    ((pontiff:module:file)   p-mfile)
     ((pontiff:state)         p-state)
     ; command-line arguments
     ((pontiff:new:argv)   argv:new)

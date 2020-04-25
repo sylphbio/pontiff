@@ -70,12 +70,12 @@
 
 ; after a build we write the module list to disk
 ; this loads it if it exists and filters out subgraphs unchanged since the previous build
-(define (trim-subgraphs objs)
+(define (trim-subgraphs objs mlist)
   (let ((match-kw (lambda (kw o1 o2) (equal? ((^. (keyw kw)) o1) ((^. (keyw kw)) o2)))))
        (filter* (lambda (o1) (not (any* (lambda (o2) (and (match-kw :name o1 o2)
                                                           (match-kw :is-root o1 o2)
                                                           (match-kw :subgraph-hash o1 o2)))
-                                        (state:mfile))))
+                                        mlist)))
                 objs)))
 
 (define (load-module m)
@@ -186,33 +186,46 @@
 (define (build-artifact artifact)
   (define aname ((^.!! (keyw :name)) artifact))
   (define aroot ((^.!! (keyw :root)) artifact))
+  (define build-dynamic (or (library? artifact) (not static)))
+  (define build-static (or (library? artifact) static))
   (printf "building ~S\n" aname)
 
   ; one ix object per module with name/root/imports
   (printf "* preparing modules... ")
-  (define modules (load-all-modules `(,aroot) '()))
+  (define base-modules (load-all-modules `(,aroot) '()))
   (printf "done\n")
 
   ; same modules objects, sorted leaves-first, with computed subgraph hashes
   (printf "* checking module graph... ")
-  (define modules^ (sort-dag (map module->adjlist modules) modules '()))
+  (define sorted-modules (sort-dag (map module->adjlist base-modules) base-modules '()))
   (printf "done\n")
 
   ; filter out modules whose local subgraphs have not changed
+  ; remember, we build two artifacts for libraries but one for executables
   ; XXX dep refresh should always force a full rebuild in case imported macros change
   (printf "* determining build order... ")
-  (define modules^^ (trim-subgraphs modules^))
+  (define dyn-modules (and build-dynamic (trim-subgraphs sorted-modules ((^.!! (keyw :dynamic)) (state:mfile)))))
+  (define stat-modules (and build-static (trim-subgraphs sorted-modules ((^.!! (keyw :static)) (state:mfile)))))
   (printf "done\n")
 
   ; note we use the filtered list in compile and write the unfiltered list to modules.ix
   ; XXX TODO FIXME modules.ix needs to be namespaced by artifact lol
   ; either named files for each artifact or list of products idk
   ; leave it this way for now I want to write the compiler so I can start using pontiff2
-  (cond ((not dry-run) (printf "compiling ~S/~S modules\n" (length modules^^) (length modules^))
-                       ; XXX compile goes here
-                       (state:save-mfile modules^)
-                       (printf "~S build finished\n\n" aname))
-        (else (printf "~S dryrun finished\n\n" aname))))
+  (cond (dry-run (printf "~S: dryrun finished\n\n" aname))
+        ((and (or (not dyn-modules) (null? dyn-modules))
+              (or (not stat-modules) (null? stat-modules))) (printf "~S: nothing to do\n\n" aname))
+        (else (when build-dynamic
+                    (printf "compiling ~S/~S modules (dynamic)\n" (length dyn-modules) (length sorted-modules))
+                    ; XXX compile goes here
+                    (printf "done\n")
+                    (state:save-mfile ((.~! (ix:wrap 'list dyn-modules) (keyw :dynamic)) (state:mfile))))
+              (when build-static
+                    (printf "compiling ~S/~S modules (static)\n" (length stat-modules) (length sorted-modules))
+                    ; XXX compile goes here
+                    (printf "done\n")
+                    (state:save-mfile ((.~! (ix:wrap 'list stat-modules) (keyw :static)) (state:mfile))))
+              (printf "~S: build finished\n\n" aname))))
 
 
   ;(printf "MAZ m^^:\n  ~A\n" (string-intersperse (map stringify:ix modules^^) "\n  ")))

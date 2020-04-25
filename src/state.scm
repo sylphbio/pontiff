@@ -44,24 +44,28 @@
 
   ; existence of a pfile means we are necessarily in a project
   (define in-project (just? pfile))
+  (define pfile-kv (if in-project `(:pfile ,(from-just pfile)) '()))
 
   ; this is created by pontiff new but just in case the user got overzealous
   (when (and in-project (not (directory-exists? bdirname)))
         (create-directory bdirname))
 
-  ; this is the list of modules last built, if empty nbd
+  ; this is an object with lists of modules last built, if empty nbd
   (define mfile (do/m <maybe>
     (>>= (to-maybe (load-file (make-pathname bdirname mfilename)))
          parse:ix
-         ix:unwrap
-         (lambda (ml) (sequence (map ((curry* ix:validate-as) 'pontiff:module) ml))))))
+         ((curry* ix:validate-as) 'pontiff:module:file))))
+
+  (define mfile-v (if (just? mfile)
+                      (from-just mfile)
+                      (ix:build! 'pontiff:module:file :dynamic '() :static '())))
 
   (set! pstate (apply ix:build!
     `(pontiff:state :working-path ,(current-directory)
                     :build-dir ,bdirname
                     :in-project ,in-project
-                    ,@(if in-project `(:pfile ,(from-just pfile)) '())
-                    :mfile ,(if (just? mfile) (from-just mfile) '())))))
+                    ,@pfile-kv
+                    :mfile ,mfile-v))))
 
 (define (access kw) (and pstate (ix:unwrap! ((^.! (keyw kw)) pstate))))
 
@@ -71,7 +75,7 @@
 ; file is optional, so this may fail. we force from-just for interface uniformity
 ; caller should check in-project first, that is the point of its existence
 (define (pfile)          (and pstate ((^.! (keyw :pfile)) pstate)))
-(define (mfile)          (access :mfile))
+(define (mfile)          (and pstate ((^.! (keyw :mfile)) pstate)))
 
 (define (save-pfile sx)
   (if (not (file-exists? pfilename))
@@ -81,7 +85,7 @@
 (define (save-mfile sx)
   (if (in-project)
       (save-file (make-pathname `(,(working-path) ,(build-dir)) mfilename)
-                 (stringify:ix (if (ix:ix? sx) sx (ix:wrap 'list sx))))
+                 (pp-ix sx))
       (error "cannot save mfile outside of project")))
 
 )
