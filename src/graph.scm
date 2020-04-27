@@ -7,6 +7,18 @@
 (import chicken.format)
 
 (import tabulae)
+(import ix)
+
+; takes module object to tag and list of import tags
+(define (module->adjlist m)
+  `(,((^.!! (keyw :name)) m)
+    ,(map (^.!! (keyw :name)) ((^.!! (keyw :imports)) m))))
+
+; given a module list, go from tag to module
+; this is here because I use it to go back from adjlist tags
+; at least that's my story
+(define (tag->module modlist tag)
+  (find* (lambda (o) (eq? ((^.!! (keyw :name)) o) tag)) modlist))
 
 (define (vertexes adjl)
   (map first* adjl))

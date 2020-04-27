@@ -29,10 +29,7 @@
 
   (define ret (do/m <either>
     (args <- (argv:process (command-line-arguments)))
-    (return (printf "MAZ args:\n~A\n" (stringify:ix args)))
     (command:dispatch args)))
-
-  (printf "MAZ accessing ret: ~S\n" ret)
 
   (when (left? ret) (printf (<> (cdadr ret) "\n"))
                     (exit (caadr ret)))

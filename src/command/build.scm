@@ -18,10 +18,7 @@
 (import (prefix state state:))
 (import util)
 (import graph)
-
-(define dry-run #f)
-(define static #f)
-(define verbose #f)
+(import command.build.compiler)
 
 ; x.y.z -> (x y z) and vice versa
 (define (module-split m) (map string->symbol (string-split (symbol->string m) ".")))
@@ -43,11 +40,6 @@
                   (cons ((^.!! (keyw :source-dir)) (state:pfile)) (drop-right* 1 mm-str)))))
         (make-pathname dir (car (take-right* 1 mm-str)) "scm")))
 
-; module object, whereas the others above operate on symbolic names
-(define (module->adjlist m)
-  `(,((^.!! (keyw :name)) m)
-    ,(map (^.!! (keyw :name)) ((^.!! (keyw :imports)) m))))
-
 ; check an adjlist for cycles while build up subgraph hashes via iterative cutleaves calls
 ; returned list is ordered leaves-first
 (define (sort-dag adjl objs acc)
@@ -58,9 +50,8 @@
          ; gathers subgraph hashes for all imports, assigns the vertex a subgraph hash
          ; defined as hash(file hash || all import subgraph hashes sorted by name)
          (mk-leaf-obj (lambda (v/e)
-           (let* ((find-obj (lambda (name) (find* (lambda (o) (eq? ((^.!! (keyw :name)) o) name)) objs)))
-                  (pmodule (find-obj (first* v/e)))
-                  (sg-hashes (map (lambda (e) ((^.!! (keyw :subgraph-hash)) (find-obj e)))
+           (let* ((pmodule (tag->module objs (first* v/e)))
+                  (sg-hashes (map (lambda (e) ((^.!! (keyw :subgraph-hash)) (tag->module objs e)))
                                   (sort (second* v/e) (lambda (s1 s2) (string<? (symbol->string s1) (symbol->string s2))))))
                   (sg-hash (<> "sha1:" (string->sha1sum (apply <> `(,((^.!! (keyw :file-hash)) pmodule) ,@sg-hashes))))))
                  ((.~! sg-hash (keyw :subgraph-hash)) pmodule)))))
@@ -183,11 +174,15 @@
 ; XXX oh we also need to check hashes. read a file named for the unit, compare
 ; if hashes match just return empty list and we can flatten between the cc call
 ; hmm or else we have one ix file with all hashes for all units
-(define (build-artifact artifact)
+(define (build-artifact artifact argv)
   (define aname ((^.!! (keyw :name)) artifact))
   (define aroot ((^.!! (keyw :root)) artifact))
+  (define verbose ((^.!! (keyw :verbose)) argv))
+  (define static ((^.!! (keyw :static)) argv))
+  (define dry-run ((^.!! (keyw :dry-run)) argv))
   (define build-dynamic (or (library? artifact) (not static)))
   (define build-static (or (library? artifact) static))
+
   (printf "building ~S\n" aname)
 
   ; one ix object per module with name/root/imports
@@ -209,33 +204,24 @@
   (printf "done\n")
 
   ; note we use the filtered list in compile and write the unfiltered list to modules.ix
-  ; XXX TODO FIXME modules.ix needs to be namespaced by artifact lol
-  ; either named files for each artifact or list of products idk
-  ; leave it this way for now I want to write the compiler so I can start using pontiff2
   (cond (dry-run (printf "~S: dryrun finished\n\n" aname))
         ((and (or (not dyn-modules) (null? dyn-modules))
               (or (not stat-modules) (null? stat-modules))) (printf "~S: nothing to do\n\n" aname))
         (else (when build-dynamic
                     (printf "compiling ~S/~S modules (dynamic)\n" (length dyn-modules) (length sorted-modules))
-                    ; XXX compile goes here
-                    (printf "done\n")
+                    (compile dyn-modules artifact #f verbose)
+                    (printf "compilation complete\n")
                     (state:save-mfile ((.~! (ix:wrap 'list dyn-modules) (keyw :dynamic)) (state:mfile))))
               (when build-static
                     (printf "compiling ~S/~S modules (static)\n" (length stat-modules) (length sorted-modules))
-                    ; XXX compile goes here
-                    (printf "done\n")
+                    (compile stat-modules artifact #t verbose)
+                    (printf "compilation complete\n")
                     (state:save-mfile ((.~! (ix:wrap 'list stat-modules) (keyw :static)) (state:mfile))))
-              (printf "~S: build finished\n\n" aname))))
-
-
-  ;(printf "MAZ m^^:\n  ~A\n" (string-intersperse (map stringify:ix modules^^) "\n  ")))
+              (printf "~S: build finished\n" aname))))
 
 (define (build argv)
-  (set! dry-run ((^.!! (keyw :dry-run)) argv))
-  (set! static ((^.!! (keyw :static)) argv))
-  (set! verbose ((^.!! (keyw :verbose)) argv))
   ; XXX TODO call init here
-  (for-each (lambda (a) (build-artifact a))
+  (for-each (lambda (a) (build-artifact a argv))
             ((^.!! (keyw :artifacts)) argv)))
 
 )
