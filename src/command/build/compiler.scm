@@ -51,6 +51,7 @@
 (define (module->link tag)
   (make-pathname #f (module->unit tag) "link"))
 
+; compile a single scm to c
 (define (csc tag path #!key is-root local-imports library static verbose)
   (define executable (not library))
   (define module-name (symbol->string tag))
@@ -95,37 +96,7 @@
   (when verbose (printf "~A\n\n" (string-intersperse (cons env args))))
   (process-run env args))
 
-; XXX alright what's the plan
-; * compile: entrypoint, takes list of modules, artifact (exe vs lib), static flag, verbose flag
-;   cutleaves and map csc for pids, map wait with cc, next round of leaves and keep the cc pids in acc
-;   maybe write a separate recursive function to do this
-;   XXX TODO DON'T FORGET shared objects ust also have a compiled import so
-; * csc: compile unpacks flags and symbols needed into keyword arg list
-;   branch off those args to build the full call, run it and return the pid
-;   structure this with an eye toward readability and extensibility, make it as boring as possible
-;   print if verbose
-; * cc: need filenames, dynamic/static, artifact type, toplevel
-;   compiler comes from pfile, flags are hardcoded for now
-; * ld: need all object file names, artifact name, lib/exe, and dynamic/static
-;   other flags are hardcoded. static builds we need to gather linkfiles for all deps (dw about this for now)
-; * mapping from module name to unit name
-; * mapping from module name to various file names (include "static" when building static)
-
-; XXX ok and what are all the decisionpoints I need for csc
-; * bin is hardcoded, some flags are hardcoded, others come from pfile
-; * unit name is determined by module name
-; * in file name is determined by module name
-; * out file name is determined by module name and static flag
-; * everything except the executable toplevel gets a unit and emits an import lib and types file
-; * every (local?) import gets a uses line and a consult types file
-; * library toplevel gets two flags
-; * static gets a flag and emit link file
-; * XXX oooh -emit-inline-file/-consult-insline-file this one is new to me use that
-
-; XXX for cc we set -DC_SHARED for a library toplevel and that's basically it I think
-; in/out names are determined by module and static flag
-; cc comes from pfile and flags are hardcoded
-
+; compile a single c to o
 (define (cc tag #!key is-root library static verbose)
   (define cc (symbol->string ((^.!! (keyw :cc)) (state:pfile))))
   (define infile (module->cfile tag static))
@@ -141,10 +112,7 @@
   (when verbose (printf "~A\n\n" (string-intersperse (cons env args))))
   (process-run env args))
 
-; XXX ok what do we need for this. pretty simple I think?
-; list of object files, which we can derive from module names
-; outfile is artifact name possibly plus an extension .so/.static.o
-; ld from pfile, ldflags hardcoded
+; link all
 (define (ld modules artifact static verbose)
   (define cc (symbol->string ((^.!! (keyw :cc)) (state:pfile))))
   (define ld (symbol->string ((^.!! (keyw :ld)) (state:pfile))))
@@ -184,7 +152,8 @@
                            leaves)))
             (compile-loop branches modules (<> acc cc-pids) artifact static verbose))))
 
-
+; XXX TODO FIXME figure out what compiling .import.so files entails, work out kinks of static compiles
+; we need to pass deps to ld when building statically, figure this out as I implement pontiff init
 (define (compile modules artifact static verbose)
   (define adjlist (map module->adjlist modules))
   (change-directory (state:build-dir))

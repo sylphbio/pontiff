@@ -144,36 +144,7 @@
              (to-load^ (union* (cdr to-load) (difference* m-imports (map (^.!! (keyw :name)) loaded^)))))
            (load-all-modules to-load^ loaded^))))
 
-; XXX ok cool next, we want to abort on dryrun otherwise drop into compiler
-; think about how to structure compilation before just jumping into it tho
-; ok so the main things are
-; * I want to have a cleaner way of building shellouts
-;   mb have dedicated functions that take all branching options as keyword args
-;   so we can have consistent if this then that kinda flow and sequester it from invocation logic
-; * need to manage concurrency... how is this supposed to work
-;   - we can parallelize all csc calls for a set of leaves
-;   - we can parallelize all cc calls
-;   my ideal flow is we... cut a set of leaves, fork a process for each csc call
-;   then we either
-;   - signal the main proc csc is finished and call cc in the existing csc proc
-;   - fork a cc proc in the csc proc, join back to main and deliver the cc proc pid
-;   - join back to main which forks a new cc proc
-;   the point being whatever's the cleanest way to run each batch of csc calls in parallel
-;   and then start the next batch once they're finished regardless of the progress of the cc calls
-;   we actually need the cc pids because we have to wait for all cc calls before linking
-;   it would also be polite if I had my own conditional process-run or whatever wrapper
-;   so I could provide an option to turn off parallelization for people on bad computers or whatever
-; the simplest way to handle parallelization may be...
-; * map each leaf to a process-run call, which returns a pid. keep this with a name or built cc call
-; * map each pid to a process-wait plus a second process-run that invokes cc
-; * return the list of pids to the caller, which retains them to merge with the next list
-; * once we run out of leaves we wait on all the cc pids and then call ld
-; we can get a little more efficient by cycling through csc pids with nonblocking wait, spawning ccs as we can
-; but this is premature optimization, we can assume most csc compiles take roughly the same time
-; would get a lot more mileage out of smarter graph handling (spawn a new csc once all its imports finish)
-; XXX oh we also need to check hashes. read a file named for the unit, compare
-; if hashes match just return empty list and we can flatten between the cc call
-; hmm or else we have one ix file with all hashes for all units
+; build a single artifact
 (define (build-artifact artifact argv)
   (define aname ((^.!! (keyw :name)) artifact))
   (define aroot ((^.!! (keyw :root)) artifact))
