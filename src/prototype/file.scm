@@ -27,6 +27,7 @@
                                   :url string))
 
 ; XXX eventually a way to specify version constraints
+; XXX dep list should be or symbol probably
 (define dep `(pontiff:dependency :name symbol
                                  :repo (sexp pontiff:repository))) ; XXX write a service to resolve these
 

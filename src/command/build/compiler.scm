@@ -17,14 +17,15 @@
 (import graph)
 
 (define env "/usr/bin/env")
-(define pwd (make-pathname (state:working-path) (state:build-dir)))
 
 ; XXX ask about -no-module-registration text on wiki says it can be used if making your own import libraries?
-(define cscflags `("-setup-mode"))
-(define cflags `("-c" "-fno-strict-aliasing" "-fwrapv" "-DHAVE_CHICKEN_CONFIG_H" "-DC_ENABLE_PTABLES"
-                 "-O2" "-fomit-frame-pointer" "-fPIC" "-DPIC" "-I/usr/include/chicken"))
-(define ldflags `(,(<> "-L" pwd)  "-L/usr/lib" "-L/usr/local/lib"
-                  ,(<> "-Wl,-R" pwd) "-Wl,-R/usr/lib" "-Wl,-R/usr/local/lib"))
+; these are all functions because pwd needs to happen after state:init
+(define (pwd) (make-pathname (state:working-path) (state:build-dir)))
+(define (cscflags) `("-setup-mode" "-include-path" ,(pwd)))
+(define (cflags) `("-c" "-fno-strict-aliasing" "-fwrapv" "-DHAVE_CHICKEN_CONFIG_H" "-DC_ENABLE_PTABLES"
+                 "-O2" "-fomit-frame-pointer" "-fPIC" "-DPIC" ,(<> "-I" (pwd)) "-I/usr/include/chicken"))
+(define (ldflags) `(,(<> "-L" (pwd))  "-L/usr/lib" "-L/usr/local/lib"
+                  ,(<> "-Wl,-R" (pwd)) "-Wl,-R/usr/lib" "-Wl,-R/usr/local/lib"))
 
 (define (process-join pid)
   (call-with-values (lambda () (process-wait pid))
@@ -52,8 +53,9 @@
   (make-pathname #f (module->unit tag) "link"))
 
 ; compile a single scm to c
-(define (csc tag path #!key is-root local-imports library static verbose)
+(define (csc tag path #!key is-root (local-imports '()) (is-module #t) library static verbose)
   (define executable (not library))
+  (define dynamic (not static))
   (define module-name (symbol->string tag))
   (define unit-name (module->unit tag))
   (define infile (make-pathname (state:working-path) path))
@@ -64,7 +66,7 @@
   (define user-flags (map ix:unwrap! ((^.!! (keyw :csc-flags)) (state:pfile))))
 
   ; anything except an exe root is a unit
-  (define unit-clauses (if (not (and executable is-root))
+  (define unit-clauses (if (and is-module (not (and executable is-root)))
                            `("-unit" ,unit-name
                              "-emit-import-library" ,module-name
                              ; XXX doesn't work? "-emit-inline-file" ,inlinefile
@@ -80,18 +82,20 @@
                               '()
                               local-imports))
 
-  ; XXX I don't know if I need this for static linking? seems suspect
-  (define library-clauses (if (and library is-root)
-                              `("-dynamic" "-feature" "chicken-compile-shared")
-                              '()))
+  ; XXX not clear on whether these things should be set for toplevel or all modules
+  (define toplevel-clauses (cond ((and dynamic library is-root)
+                                  `("-dynamic" "-feature" "chicken-compile-shared"))
+                                 ((and static library is-root)
+                                  `("-module-registration"))
+                                 (else '())))
 
-  ; XXX I think I only need linkfile for the static library root? again seems suspect
+  ; XXX I think I only need linkfile for the static library root? seems suspect
   (define static-clauses (if static
                              `("-static" "-emit-link-file" ,linkfile)
                              '()))
 
-  (define args `("chicken" ,infile "-output-file" ,outfile ,@cscflags ,@user-flags
-                 ,@unit-clauses ,@uses-clauses ,@library-clauses ,@static-clauses))
+  (define args `("chicken" ,infile "-output-file" ,outfile ,@(cscflags) ,@user-flags
+                 ,@unit-clauses ,@uses-clauses ,@toplevel-clauses ,@static-clauses))
 
   (when verbose (printf "~A\n\n" (string-intersperse (cons env args))))
   (process-run env args))
@@ -105,25 +109,29 @@
   ; XXX again unclear if needed for static library or just dynamic
   ; I'm pretty sure my confusion is pontiff1 I wrote this to mean a statically-linked shared object
   ; whereas we actually want to this to be an object file suitable for compiling into a static executable
+  ; XXX shared doesn't mean dynamic, this makes a fake entrypoint lol
   (define shared-clause (if library `("-DC_SHARED") '()))
 
-  (define args `(,cc ,infile "-o" ,outfile ,@cflags ,@shared-clause))
+  (define args `(,cc ,infile "-o" ,outfile ,@(cflags) ,@shared-clause))
 
   (when verbose (printf "~A\n\n" (string-intersperse (cons env args))))
   (process-run env args))
 
 ; link all
-(define (ld modules artifact static verbose)
+(define (ld module-tags artifact-tag #!key library static verbose)
   (define cc (symbol->string ((^.!! (keyw :cc)) (state:pfile))))
   (define ld (symbol->string ((^.!! (keyw :ld)) (state:pfile))))
-  (define infiles (map (lambda (m) (module->ofile ((^.!! (keyw :name)) m))) modules))
-  (define outfile (symbol->string ((^.!! (keyw :name)) artifact)))
+  (define infiles (map module->ofile module-tags))
+  (define outfile (let ((basename (symbol->string artifact-tag)))
+                       (cond ((and library static) (make-pathname #f basename "static.o"))
+                             (library (make-pathname #f basename "so"))
+                             (else basename))))
 
   ; XXX again almost certainly nix shared for static lib
-  (define shared-clauses (if (library? artifact) `("-shared") '()))
+  (define shared-clauses (if library `("-shared") '()))
   (define link-clauses (if static `("-static" "-l:libchicken.a") `("-lchicken")))
 
-  (define args `(,cc ,@infiles "-o" ,outfile ,(<> "-fuse-ld=" ld) ,@ldflags
+  (define args `(,cc ,@infiles "-o" ,outfile ,(<> "-fuse-ld=" ld) ,@(ldflags)
                  ,@shared-clauses ,@link-clauses "-lm" "-ldl"))
 
   (when verbose (printf "~A\n\n" (string-intersperse (cons env args))))
@@ -152,18 +160,43 @@
                            leaves)))
             (compile-loop branches modules (<> acc cc-pids) artifact static verbose))))
 
+; XXX ok wtf do I have to do for this shit
+; this only gets called for a dynamic library
+; it's compiled like a normal so. no unit... toplevel takes care of that
+; no uses, pass in no imports. include build dir in path
+(define (compile-import-so tag verbose)
+  (define import-tag (symbol-append tag '.import))
+  (define import-file (make-pathname (state:build-dir) (symbol->string import-tag) "scm"))
+
+  (process-join (csc import-tag import-file :is-root #t :is-module #f :library #t :static #f :verbose verbose))
+  (process-join (cc import-tag :is-root #t :library #t :static #f :verbose verbose))
+  (process-join (ld `(,import-tag) import-tag :library #t :static #f :verbose verbose)))
+
 ; XXX TODO FIXME figure out what compiling .import.so files entails, work out kinks of static compiles
 ; we need to pass deps to ld when building statically, figure this out as I implement pontiff init
+; XXX FIXME I need to include my own built extensions somehow. compiling import lib might do this automatically?
 (define (compile modules artifact static verbose)
   (define adjlist (map module->adjlist modules))
+  (define module-tags (map car adjlist))
+  (define library (library? artifact))
+  (define dynamic (not static))
+
   (change-directory (state:build-dir))
+
   (define cc-pids (compile-loop adjlist modules '() artifact static verbose))
   (printf "* csc done\n")
+
   (for-each process-join cc-pids)
   (printf "* cc done\n")
-  (define ld-pid (ld modules artifact static verbose))
-  (process-join ld-pid)
+
+  ; XXX chicken-install never calls ld for staticlibs ... does chicken pull in extensions automatically? does it for exes?
+  (process-join (ld module-tags ((^.!! (keyw :name)) artifact) :library library :static static :verbose verbose))
   (printf "* ld done\n")
+
+  (when (and dynamic library)
+        (compile-import-so ((^.!! (keyw :root)) artifact) verbose)
+        (printf "* import library done\n"))
+
   (change-directory (state:working-path)))
 
 )

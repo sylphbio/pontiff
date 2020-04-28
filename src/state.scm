@@ -83,9 +83,8 @@
       (error "not allowed to clobber existing pfile, this should only be called in new")))
 
 (define (save-mfile sx)
-  (if (in-project)
-      (save-file (make-pathname `(,(working-path) ,(build-dir)) mfilename)
-                 (pp-ix sx))
-      (error "cannot save mfile outside of project")))
+  (when (not (in-project)) (error "cannot save mfile outside of project"))
+  (save-file (make-pathname `(,(working-path) ,(build-dir)) mfilename) (pp-ix sx))
+  (set! pstate ((.~! sx (keyw :mfile)) pstate)))
 
 )

@@ -71,7 +71,6 @@
 
 (define (load-module m)
   (letrec ((path (module-path m))
-           (hash (<> "sha1:" (sha1sum (module-path m))))
            ; straightforward
            (catch-read (lambda (port)
              (condition-case (read port)
@@ -114,8 +113,8 @@
                     ; I don't do anything with the other lists but could be nice to sanity check things?
                     (local-imports (map (lambda (i) (ix:build! 'pontiff:module:import :name i :type 'local))
                                         (difference* imports system-libs pontiff-libs egg-libs))))
-                   (ix:build! 'pontiff:module :name m :path path :file-hash hash :subgraph-hash ""
-                                              :is-root #f :imports local-imports)))))
+                   (ix:build! 'pontiff:module :name m :path path :file-hash (<> "sha1:" (sha1sum (module-path m)))
+                                              :subgraph-hash "" :is-root #f :imports local-imports)))))
            ; a file should be nothing but compiler declarations and a single module
            ; the core constraint of pontiff is that one file = one module = one compilation unit
            (read-file (lambda (port)
@@ -178,12 +177,12 @@
   (cond (dry-run (printf "~S: dryrun finished\n\n" aname))
         ((and (or (not dyn-modules) (null? dyn-modules))
               (or (not stat-modules) (null? stat-modules))) (printf "~S: nothing to do\n\n" aname))
-        (else (when build-dynamic
+        (else (when (and dyn-modules (not (null? dyn-modules)))
                     (printf "compiling ~S/~S modules (dynamic)\n" (length dyn-modules) (length sorted-modules))
                     (compile dyn-modules artifact #f verbose)
                     (printf "compilation complete\n")
                     (state:save-mfile ((.~! (ix:wrap 'list dyn-modules) (keyw :dynamic)) (state:mfile))))
-              (when build-static
+              (when (and stat-modules (not (null? stat-modules)))
                     (printf "compiling ~S/~S modules (static)\n" (length stat-modules) (length sorted-modules))
                     (compile stat-modules artifact #t verbose)
                     (printf "compilation complete\n")
