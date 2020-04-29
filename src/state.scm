@@ -30,7 +30,7 @@
 
 (define bdirname ".pontiff-work")
 (define pfilename "pontiff.ix")
-(define mfilename "modules.ix")
+(define (mfilename pname) (<> (symbol->string pname) "-modules.ix"))
 
 (define (init)
   ; set up ix prototypes
@@ -52,7 +52,8 @@
 
   ; this is an object with lists of modules last built, if empty nbd
   (define mfile (do/m <maybe>
-    (>>= (to-maybe (load-file (make-pathname bdirname mfilename)))
+    (project <- (>>= pfile (^. (keyw :name)) ix:unwrap))
+    (>>= (to-maybe (load-file (make-pathname bdirname (mfilename project))))
          parse:ix
          ((curry* ix:validate-as) 'pontiff:module:file))))
 
@@ -84,7 +85,8 @@
 
 (define (save-mfile sx)
   (when (not (in-project)) (error "cannot save mfile outside of project"))
-  (save-file (make-pathname `(,(working-path) ,(build-dir)) mfilename) (pp-ix sx))
+  (define pname ((^.!! (keyw :name)) (pfile)))
+  (save-file (make-pathname `(,(working-path) ,(build-dir)) (mfilename pname)) (pp-ix sx))
   (set! pstate ((.~! sx (keyw :mfile)) pstate)))
 
 )

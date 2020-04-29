@@ -17,7 +17,8 @@
                                    :static boolean
                                    :verbose boolean))
 
-(define run `(pontiff:run:argv :artifact symbol))
+(define run `(pontiff:run:argv :artifact (sexp pontiff:executable)
+                               :exec-args (list string)))
 
 (define test `(pontiff:test:argv :test-type (enum unit integration all)))
 

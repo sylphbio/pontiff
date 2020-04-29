@@ -20,6 +20,7 @@
 
 ; XXX ask about -no-module-registration text on wiki says it can be used if making your own import libraries?
 ; these are all functions because pwd needs to happen after state:init
+; XXX include-path is specifically for include, there doesn't appear to be a way to define alternative extension repos
 (define (pwd) (make-pathname (state:working-path) (state:build-dir)))
 (define (cscflags) `("-setup-mode" "-include-path" ,(pwd)))
 (define (cflags) `("-c" "-fno-strict-aliasing" "-fwrapv" "-DHAVE_CHICKEN_CONFIG_H" "-DC_ENABLE_PTABLES"
@@ -27,14 +28,7 @@
 (define (ldflags) `(,(<> "-L" (pwd))  "-L/usr/lib" "-L/usr/local/lib"
                   ,(<> "-Wl,-R" (pwd)) "-Wl,-R/usr/lib" "-Wl,-R/usr/local/lib"))
 
-(define (process-join pid)
-  (call-with-values (lambda () (process-wait pid))
-                    (lambda (pid clean code) (when (not clean) (die "process ~S terminated abnormally with ~S" pid code))
-                                             (when (not (= code 0)) (die "process ~S exited with status ~S" pid code))
-                                             '())))
-
-(define (module->unit tag)
-  (<> "__" (string-translate (symbol->string tag) "." "_")))
+(define module->unit symbol->string)
 
 (define (module->cfile tag #!optional static)
   (let ((base (if static (<> (module->unit tag) ".static") (module->unit tag))))
@@ -172,9 +166,8 @@
   (process-join (cc import-tag :is-root #t :library #t :static #f :verbose verbose))
   (process-join (ld `(,import-tag) import-tag :library #t :static #f :verbose verbose)))
 
-; XXX TODO FIXME figure out what compiling .import.so files entails, work out kinks of static compiles
-; we need to pass deps to ld when building statically, figure this out as I implement pontiff init
-; XXX FIXME I need to include my own built extensions somehow. compiling import lib might do this automatically?
+; XXX TODO FIXME we need to pass deps to ld when building statically, figure this out as I implement pontiff init
+; XXX TODO FIXME testing with a trivial lib/exe pair, I need to be in .pontiff-work when running exe for it to pick up lib
 (define (compile modules artifact static verbose)
   (define adjlist (map module->adjlist modules))
   (define module-tags (map car adjlist))
@@ -190,6 +183,7 @@
   (printf "* cc done\n")
 
   ; XXX chicken-install never calls ld for staticlibs ... does chicken pull in extensions automatically? does it for exes?
+  ; ld complains about not finding a start symbol with static lib link, so probably unnecessary. need to test more
   (process-join (ld module-tags ((^.!! (keyw :name)) artifact) :library library :static static :verbose verbose))
   (printf "* ld done\n")
 

@@ -52,6 +52,14 @@
     (call-with-values (lambda () (getopt-long (cdr argv) grammar :unknown-option-handler (lambda (_) #t)))
                       (lambda (args unknown) (if (eqv? unknown #t) (fail) (return args))))))
 
+; helper function for build/run that searches the project's artifacts for a cli-specified one
+(define (locate-artifact artifact-list tag)
+  (do/m <either>
+    (let ((a (find* (lambda (a) (eq? ((^.!! (keyw :name)) a) tag)) artifact-list)))
+         (if a
+             (return a)
+             (fail `(1 . ,(<> "pontiff error: no artifact named " (symbol->string tag))))))))
+
 (define (new-builder argv)
   (do/m <either>
     (args <- (maybe->either (getopt new-grammar argv)
@@ -96,11 +104,7 @@
     (declare project-artifacts ((^.!! (keyw :artifacts)) (state:pfile)))
     ; as in, artifacts under consideration
     (artifacts <- (cond ((alist-ref 'artifact args)
-                         (let* ((name (string->symbol (alist-ref 'artifact args)))
-                                (a (find* (lambda (a) (eq? ((^.!! (keyw :name)) a) name)) project-artifacts)))
-                               (if a
-                                   (return `(,a))
-                                   (fail `(1 . ,(<> "pontiff error: no artifact named " (symbol->string name)))))))
+                         (<$> list (locate-artifact project-artifacts (string->symbol (alist-ref 'artifact args)))))
                         ((or (alist-ref 'all args) (= (length project-artifacts) 1))
                          (return project-artifacts))
                         (else (fail `(1 . "pontiff error: could not determine suitable artifact")))))
@@ -113,7 +117,24 @@
                                                  :verbose (alist-ref 'verbose args))
                    `(1 . "pontiff error: failed to build argv ix"))))
 
-(define (run-builder argv) '())
+(define (run-builder argv)
+  (do/m <either>
+    ; take index of double dash excludes it, then we drop one extra to drop it
+    (declare argv-div (or (findi* (lambda (a) (equal? a "--")) argv) (length argv)))
+    (args <- (maybe->either (getopt run-grammar (take* argv-div argv))
+                            `(1 . ,usage-string)))
+    ; no extraneous input before double dash
+    (to-either (= (length (alist-ref '@ args)) 0)
+               `(1 . "pontiff error: extraneous input"))
+    ; get pfile artifacts
+    (declare project-artifacts ((^.!! (keyw :artifacts)) (state:pfile)))
+    (artifact <- (cond ((alist-ref 'artifact args)
+                        (locate-artifact project-artifacts (string->symbol (alist-ref 'artifact args))))
+                       ((= (length (filter* executable? project-artifacts)) 1)
+                        (return (find* executable? project-artifacts)))
+                       (else (fail `(1 . "pontiff error: could not determine suitable artifact")))))
+    (maybe->either (ix:build 'pontiff:run:argv :artifact artifact :exec-args (drop* (+ argv-div 1) argv))
+                   `(1 . "pontiff error: failed to build argv ix"))))
 
 (define (test-builder argv) '())
 
