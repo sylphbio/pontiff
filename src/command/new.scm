@@ -20,12 +20,13 @@
 (import util)
 
 (define (new-pfile argv)
-  (define repo (ix:build! 'pontiff:repository :vcs 'git :url ""))
+  (define pname ((^.! (keyw :project-name)) argv))
+  (define repo (ix:build! 'pontiff:repository :name pname :vcs 'git :url ""))
   (define artifact-tag ((^.!! (keyw :artifact-type)) argv))
   (define artifact (ix:build! artifact-tag :name ((^.! (keyw :artifact-name)) argv)
                                            :root ((^.! (keyw :artifact-name)) argv)))
   ; XXX move a lot of this hardcoded shit into a global default file when I eventually do that
-  (ix:build! 'pontiff :name ((^.! (keyw :project-name)) argv)
+  (ix:build! 'pontiff :name pname
                       :version '(0 1 0)
                       :pontiff-version state:version
                       :synopsis ""
@@ -42,8 +43,9 @@
                       :tests `(,(ix:build! 'pontiff:executable :name 'unit :root 'test.unit)
                                ,(ix:build! 'pontiff:executable :name 'integration :root 'test.integration))
                       :dependencies '()
-                      :egg-resolver 'chicken-install
-                      :egg-dependencies '(test)))
+                      :resolver 'alice
+                      :egg-dependencies '(test)
+                      :egg-resolver 'chicken-install))
 
 ; XXX consider restructuring as, or at least to return, either
 (define (new argv)

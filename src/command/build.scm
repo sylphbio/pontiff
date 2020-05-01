@@ -111,10 +111,9 @@
                     (egg-names (map ix:unwrap! ((^.!! (keyw :egg-dependencies)) (state:pfile))))
                     (egg-libs (filter* (lambda (i) (any* (lambda (e) (module-of e i)) egg-names)) imports))
                     ; I don't do anything with the other lists but could be nice to sanity check things?
-                    (local-imports (map (lambda (i) (ix:build! 'pontiff:module:import :name i :type 'local))
-                                        (difference* imports system-libs pontiff-libs egg-libs))))
+                    (local-imports (difference* imports system-libs pontiff-libs egg-libs)))
                    (ix:build! 'pontiff:module :name m :path path :file-hash (<> "sha1:" (sha1sum (module-path m)))
-                                              :subgraph-hash "" :is-root #f :imports local-imports)))))
+                                              :subgraph-hash "" :is-root #f :local-imports local-imports)))))
            ; a file should be nothing but compiler declarations and a single module
            ; the core constraint of pontiff is that one file = one module = one compilation unit
            (read-file (lambda (port)
@@ -138,7 +137,7 @@
   (if (null? to-load)
       ((.~! #t (idx 0) (keyw :is-root)) (reverse loaded))
       (let* ((m (load-module (car to-load)))
-             (m-imports (map (^.!! (keyw :name)) ((^.!! (keyw :imports)) m)))
+             (m-imports (map (^.!! (keyw :name)) ((^.!! (keyw :local-imports)) m)))
              (loaded^ (cons m loaded))
              (to-load^ (union* (cdr to-load) (difference* m-imports (map (^.!! (keyw :name)) loaded^)))))
            (load-all-modules to-load^ loaded^))))
@@ -169,6 +168,7 @@
   ; the reason I didn't notice this sooner is we don't do anything if we filter it to nothing
   ; what I actually want is a freeform ix object wth every module/static/root triple a key, sg hash a value
   ; and then we *add* our trimmed hashes, not replace them
+  ; importantly, we don't even want to use the unfiltered list, otherwise we lose data on other artifacts' modules
   (printf "* determining build order... ")
   (define dyn-modules (and build-dynamic (trim-subgraphs sorted-modules ((^.!! (keyw :dynamic)) (state:mfile)))))
   (define stat-modules (and build-static (trim-subgraphs sorted-modules ((^.!! (keyw :static)) (state:mfile)))))

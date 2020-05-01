@@ -19,17 +19,15 @@
                        :ld (enum lld)   ; XXX support gnu ld maybe
                        :artifacts (list (sum (sexp pontiff:executable) (sexp pontiff:library)))
                        :tests (list (sexp pontiff:executable))
-                       :dependencies (list (sexp pontiff:dependency))
-                       :egg-resolver (enum chicken-install) ; XXX write my own resolver
-                       :egg-dependencies (list symbol)))
+                       ; XXX TODO separate out test deps
+                       :dependencies (list (sum symbol (sexp pontiff:repository)))
+                       :resolver (enum alice) ; highly advanced technology
+                       :egg-dependencies (list symbol)
+                       :egg-resolver (enum chicken-install))) ; XXX write my own resolver
 
-(define repo `(pontiff:repository :vcs (enum git) ; XXX support svn, maybe mercurial, maybe pijul
+(define repo `(pontiff:repository :name symbol
+                                  :vcs (enum git) ; XXX support svn, maybe mercurial, maybe pijul
                                   :url string))
-
-; XXX eventually a way to specify version constraints
-; XXX dep list should be or symbol probably
-(define dep `(pontiff:dependency :name symbol
-                                 :repo (sexp pontiff:repository))) ; XXX write a service to resolve these
 
 (define exe `(pontiff:executable :name symbol
                                  :root symbol))

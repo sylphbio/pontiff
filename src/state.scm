@@ -47,6 +47,7 @@
   (define pfile-kv (if in-project `(:pfile ,(from-just pfile)) '()))
 
   ; this is created by pontiff new but just in case the user got overzealous
+  ; XXX just do this unconditionally plus egg/dep dirs and don't need to do it in new
   (when (and in-project (not (directory-exists? bdirname)))
         (create-directory bdirname))
 
