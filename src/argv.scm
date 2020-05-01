@@ -136,7 +136,21 @@
     (maybe->either (ix:build 'pontiff:run:argv :artifact artifact :exec-args (drop* (+ argv-div 1) argv))
                    `(1 . "pontiff error: failed to build argv ix"))))
 
-(define (test-builder argv) '())
+(define (test-builder argv)
+  (do/m <either>
+    (args <- (maybe->either (getopt test-grammar argv)
+                            `(1 . ,usage-string)))
+    ; no extraneous input
+    (to-either (= (length (alist-ref '@ args)) 0)
+               `(1 . "pontiff error: extraneous input"))
+    (declare unit-flag (alist-ref 'unit args))
+    (declare integ-flag (alist-ref 'integration args))
+    (declare all-flag (alist-ref 'all args))
+    (declare test-type (cond ((or all-flag (and unit-flag integ-flag)) 'all)
+                             (integ-flag 'integration)
+                             (else 'unit)))
+    (maybe->either (ix:build 'pontiff:test:argv :type test-type)
+                   `(1 . "pontiff error: failed to build argv ix"))))
 
 (define (clean-builder argv) '())
 

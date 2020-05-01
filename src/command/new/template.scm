@@ -47,8 +47,6 @@ EOF
 
 (import test)
 
-(import ##MODULENAME##)
-
 (test-group "basic tests"
   (test "lgtm!" 4 (+ 2 2)))
 

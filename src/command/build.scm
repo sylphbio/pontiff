@@ -1,4 +1,4 @@
-(module command.build (build)
+(module command.build (build build-artifact)
 
 (import scheme)
 (import chicken.base)
@@ -144,12 +144,9 @@
            (load-all-modules to-load^ loaded^))))
 
 ; build a single artifact
-(define (build-artifact artifact argv)
+(define (build-artifact artifact #!optional verbose static dry-run)
   (define aname ((^.!! (keyw :name)) artifact))
   (define aroot ((^.!! (keyw :root)) artifact))
-  (define verbose ((^.!! (keyw :verbose)) argv))
-  (define static ((^.!! (keyw :static)) argv))
-  (define dry-run ((^.!! (keyw :dry-run)) argv))
   (define build-dynamic (or (library? artifact) (not static)))
   (define build-static (or (library? artifact) static))
 
@@ -168,6 +165,10 @@
   ; filter out modules whose local subgraphs have not changed
   ; remember, we build two artifacts for libraries but one for executables
   ; XXX dep refresh should always force a full rebuild in case imported macros change
+  ; XXX TODO FIXME this is fundamentally flawed!! we replace mfile list with whatever we have left after filtering
+  ; the reason I didn't notice this sooner is we don't do anything if we filter it to nothing
+  ; what I actually want is a freeform ix object wth every module/static/root triple a key, sg hash a value
+  ; and then we *add* our trimmed hashes, not replace them
   (printf "* determining build order... ")
   (define dyn-modules (and build-dynamic (trim-subgraphs sorted-modules ((^.!! (keyw :dynamic)) (state:mfile)))))
   (define stat-modules (and build-static (trim-subgraphs sorted-modules ((^.!! (keyw :static)) (state:mfile)))))
@@ -190,8 +191,11 @@
               (printf "~S: build finished\n" aname))))
 
 (define (build argv)
+  (define verbose ((^.!! (keyw :verbose)) argv))
+  (define static ((^.!! (keyw :static)) argv))
+  (define dry-run ((^.!! (keyw :dry-run)) argv))
   ; XXX TODO call init here
-  (for-each (lambda (a) (build-artifact a argv))
+  (for-each (lambda (a) (build-artifact a verbose static dry-run))
             ((^.!! (keyw :artifacts)) argv)))
 
 )

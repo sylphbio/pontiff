@@ -15,6 +15,7 @@
 (import (prefix state state:))
 (import util)
 
+; XXX TODO FIXME when I write my own process-run replacement I don't need to cd anymore
 (define (run argv)
   (define exe (symbol->string ((^.!! (keyw :artifact) (keyw :name)) argv)))
   (change-directory (state:build-dir))

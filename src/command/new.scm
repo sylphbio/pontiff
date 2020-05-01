@@ -43,7 +43,7 @@
                                ,(ix:build! 'pontiff:executable :name 'integration :root 'test.integration))
                       :dependencies '()
                       :egg-resolver 'chicken-install
-                      :egg-dependencies '()))
+                      :egg-dependencies '(test)))
 
 ; XXX consider restructuring as, or at least to return, either
 (define (new argv)

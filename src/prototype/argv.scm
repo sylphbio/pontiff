@@ -20,7 +20,7 @@
 (define run `(pontiff:run:argv :artifact (sexp pontiff:executable)
                                :exec-args (list string)))
 
-(define test `(pontiff:test:argv :test-type (enum unit integration all)))
+(define test `(pontiff:test:argv :type (enum unit integration all)))
 
 ; XXX TODO --deps to also wipe out dependencies
 (define clean `(pontiff:clean:argv))

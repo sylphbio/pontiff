@@ -77,15 +77,15 @@
                               local-imports))
 
   ; XXX not clear on whether these things should be set for toplevel or all modules
+  ; XXX I don't actually know if the linkfile is used by chicken, or if it's just for my convenience if I need it
   (define toplevel-clauses (cond ((and dynamic library is-root)
                                   `("-dynamic" "-feature" "chicken-compile-shared"))
                                  ((and static library is-root)
-                                  `("-module-registration"))
+                                  `("-emit-link-file" ,linkfile))
                                  (else '())))
 
-  ; XXX I think I only need linkfile for the static library root? seems suspect
   (define static-clauses (if static
-                             `("-static" "-emit-link-file" ,linkfile)
+                             `("-static" "-module-registration")
                              '()))
 
   (define args `("chicken" ,infile "-output-file" ,outfile ,@(cscflags) ,@user-flags
