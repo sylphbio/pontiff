@@ -20,7 +20,7 @@
                        :artifacts (list (sum (sexp pontiff:executable) (sexp pontiff:library)))
                        :tests (list (sexp pontiff:executable))
                        ; XXX TODO separate out test deps
-                       :dependencies (list (sum symbol (sexp pontiff:repository)))
+                       :dependencies (list (sum symbol (sexp pontiff:repository) (sexp pontiff:directory)))
                        :resolver (enum alice) ; highly advanced technology
                        :egg-dependencies (list symbol)
                        :egg-resolver (enum chicken-install))) ; XXX write my own resolver
@@ -28,6 +28,9 @@
 (define repo `(pontiff:repository :name symbol
                                   :vcs (enum git) ; XXX support svn, maybe mercurial, maybe pijul
                                   :url string))
+
+(define dir `(pontiff:directory :name symbol
+                                :path string))
 
 (define exe `(pontiff:executable :name symbol
                                  :root symbol))

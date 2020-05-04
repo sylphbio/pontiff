@@ -44,7 +44,7 @@
                  (single-char #\a))
     (integration "run integration tests"
                  (single-char #\i))
-    (unit        "run unit tests"
+    (unit        "run unit tests (default)"
                  (single-char #\u))))
 
 (define (getopt grammar argv)
@@ -87,8 +87,8 @@
                                                :artifact-name artifact-name)
                    `(1 . "pontiff error: failed to build argv ix"))))
 
-(define (init-builder argv)
-  (<either>-return (ix:build! 'pontiff:init:argv)))
+(define (gather-builder argv)
+  (<either>-return (ix:build! 'pontiff:gather:argv)))
 
 (define (build-builder argv)
   (do/m <either>
@@ -156,12 +156,12 @@
 
 (define (command-builder cmd)
   (to-maybe (case cmd
-    ((new)   new-builder)
-    ((init)  init-builder)
-    ((build) build-builder)
-    ((run)   run-builder)
-    ((test)  test-builder)
-    ((clean) clean-builder)
+    ((new)    new-builder)
+    ((gather) gather-builder)
+    ((build)  build-builder)
+    ((run)    run-builder)
+    ((test)   test-builder)
+    ((clean)  clean-builder)
     (else #f))))
 
 (define usage-string
@@ -176,7 +176,7 @@ commands:
 #{(lpad (usage new-grammar))}
     by default new will start a project with one executable of the same name as the project
 
-  init
+  gather
 
   build
 #{(lpad (usage build-grammar))}
@@ -184,8 +184,6 @@ commands:
 #{(lpad (usage run-grammar))}
   test
 #{(lpad (usage test-grammar))}
-    default behavior is to only run unit tests
-
   clean
 
 EOF

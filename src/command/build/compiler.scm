@@ -166,7 +166,7 @@
   (process-join (cc import-tag :is-root #t :library #t :static #f :verbose verbose))
   (process-join (ld `(,import-tag) import-tag :library #t :static #f :verbose verbose)))
 
-; XXX TODO FIXME we need to pass deps to ld when building statically, figure this out as I implement pontiff init
+; XXX TODO FIXME we need to pass deps to ld when building statically, figure this out as I implement pontiff gather
 ; XXX TODO FIXME testing with a trivial lib/exe pair, I need to be in .pontiff-work when running exe for it to pick up lib
 (define (compile modules artifact static verbose)
   (define adjlist (map module->adjlist modules))

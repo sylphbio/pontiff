@@ -46,10 +46,11 @@
   (define in-project (just? pfile))
   (define pfile-kv (if in-project `(:pfile ,(from-just pfile)) '()))
 
-  ; this is created by pontiff new but just in case the user got overzealous
-  ; XXX just do this unconditionally plus egg/dep dirs and don't need to do it in new
-  (when (and in-project (not (directory-exists? bdirname)))
-        (create-directory bdirname))
+  ; create-directory does nothing if the dir exists, so just run this always
+  (when in-project
+        (create-directory bdirname)
+        (create-directory (make-pathname bdirname "deps"))
+        (create-directory (make-pathname bdirname "eggs")))
 
   ; this is an object with lists of modules last built, if empty nbd
   (define mfile (do/m <maybe>

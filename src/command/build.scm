@@ -105,7 +105,7 @@
                                                  (filter* isimport? body)))))
                     (system-libs (filter* (lambda (i) (or (memq i '(scheme r5rs r4rs srfi-4)) (module-of 'chicken i))) imports))
                     ; XXX FIXME this creates the annoying situation that the dep name must match the imported module names
-                    ; perhaps init should pull down a list of library artifact roots and store that somewhere?
+                    ; perhaps gather should pull down a list of library artifact roots and store that somewhere?
                     (dep-names (map (^.!! (keyw :name)) ((^.!! (keyw :dependencies)) (state:pfile))))
                     (pontiff-libs (filter* (lambda (i) (any* (lambda (d) (module-of d i)) dep-names)) imports))
                     (egg-names (map ix:unwrap! ((^.!! (keyw :egg-dependencies)) (state:pfile))))
@@ -133,6 +133,9 @@
               (die "could not load module ~S at path ~A" m path))))
 
 ; to-load is a list of tags, loaded is our accumulator of parsed objects
+; the trick here is we take one item to load at a time, load it, extract its imports
+; then our next to-load list is the union of what's left plus the difference of the extracted imports and the past loads
+; and in this way we work through the flattened graph without repeats or omissions
 (define (load-all-modules to-load loaded)
   (if (null? to-load)
       ((.~! #t (idx 0) (keyw :is-root)) (reverse loaded))
@@ -140,7 +143,7 @@
              (m-imports (map (^.!! (keyw :name)) ((^.!! (keyw :local-imports)) m)))
              (loaded^ (cons m loaded))
              (to-load^ (union* (cdr to-load) (difference* m-imports (map (^.!! (keyw :name)) loaded^)))))
-           (load-all-modules to-load^ loaded^))))
+            (load-all-modules to-load^ loaded^))))
 
 ; build a single artifact
 (define (build-artifact artifact #!optional verbose static dry-run)
@@ -194,7 +197,7 @@
   (define verbose ((^.!! (keyw :verbose)) argv))
   (define static ((^.!! (keyw :static)) argv))
   (define dry-run ((^.!! (keyw :dry-run)) argv))
-  ; XXX TODO call init here
+  ; XXX TODO call gather here
   (for-each (lambda (a) (build-artifact a verbose static dry-run))
             ((^.!! (keyw :artifacts)) argv)))
 
