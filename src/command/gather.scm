@@ -7,6 +7,7 @@
 (import chicken.format)
 (import chicken.file)
 (import chicken.file.posix)
+(import chicken.process-context)
 (import chicken.pathname)
 
 (import tabulae)
@@ -121,6 +122,9 @@
 (define (gather argv)
   (define verbose ((^.!! (keyw :verbose)) argv))
   (define egg-path (make-pathname `(,(state:working-path) ,(state:build-dir)) "eggs"))
+  (define env `(("CHICKEN_EGG_CACHE" . ,egg-path)
+                ("CHICKEN_INSTALL_REPOSITORY" . ,egg-path)
+                ("CHICKEN_REPOSITORY_PATH" . ,egg-path)))
   ; this clones, symlinks, or whatever every dependency, every dependency's dependency, etc
   ; then returns two lists of symbols as specified
   (printf "fetching dependencies\n")
@@ -129,14 +133,23 @@
                                     '()))
   ; next we install all eggs locally to this project
   (printf "compiling eggs\n")
-  (process-join (process-create (string-intersperse
-                                  `("/usr/bin/env" "chicken-install" ,@(map symbol->string (car eggs/deps))
-                                    ,@(if verbose '() `("| sed -n 's/^building.*/\\* &/p'"))))
+  (process-join (process-create (string-intersperse `("/usr/bin/env" "chicken-install" ,@(map symbol->string (car eggs/deps))
+                                                      ,@(if verbose '() `("2>&1 | sed -n 's/^building.*/\\* &/p'"))))
                                 #f
-                                `(("CHICKEN_EGG_CACHE" . ,egg-path)
-                                  ("CHICKEN_INSTALL_REPOSITORY" . ,egg-path)
-                                  ("CHICKEN_REPOSITORY_PATH" . ,egg-path))
-                                (lambda (s) (and (substring=? s "building") (<> "* " (car (string-split s "\n")) "\n")))))
-  (printf "MAZ e: ~S\n    d: ~S\n" (car eggs/deps) (cdr eggs/deps)))
+                                env))
+  (printf "compiling dependencies\n")
+  (for-each (lambda (name) (let ((dpath (make-pathname `(,(state:working-path) ,(state:build-dir) "deps")
+                                                       (symbol->string name))))
+                                (change-directory dpath)
+                                ; XXX TODO pass through a nogather flag once I add that
+                                (process-join (process-create "/usr/bin/env"
+                                                              `("pontiff" "build" "--all" ,@(if verbose `("--verbose") '()))
+                                                              env))
+                                ; XXX TODO I also need to symlink the resulting artifacts back to the parent
+                                ; XXX also also for this to actually work without adding to repo path I need a static pontiff
+                                (change-directory (state:working-path))))
+            (cdr eggs/deps))
+  ; XXX TODO write out a deps file for linking
+  (printf "gather complete\n"))
 
 )
