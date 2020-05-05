@@ -173,6 +173,7 @@
   ; XXX TODO FIXME this is fundamentally flawed for multi-artifact projects!!
   ; what I actually want is a freeform ix object wth every module/static/root triple a key, sg hash a value
   ; we can't just replace unfiltered lists, otherwise we lose data on other artifacts' modules
+  ; XXX FIXME I also need to track whether we have last built a static or dynamic executable, or else always at least link
   (printf "* determining build order... ")
   (define dyn-modules (and build-dynamic (skip-subgraphs sorted-modules ((^.!! (keyw :dynamic)) (state:mfile)))))
   (define stat-modules (and build-static (skip-subgraphs sorted-modules ((^.!! (keyw :static)) (state:mfile)))))

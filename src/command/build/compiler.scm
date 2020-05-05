@@ -5,6 +5,7 @@
 (import chicken.type)
 (import chicken.string)
 (import chicken.format)
+(import chicken.file)
 (import chicken.process)
 (import chicken.process-context)
 (import chicken.pathname)
@@ -96,36 +97,35 @@
 
 ; compile a single c to o
 (define (cc tag #!key is-root library static verbose)
+  (define dynamic (not static))
   (define cc (symbol->string ((^.!! (keyw :cc)) (state:pfile))))
   (define infile (module->cfile tag static))
   (define outfile (module->ofile tag static))
 
-  ; XXX again unclear if needed for static library or just dynamic
-  ; I'm pretty sure my confusion is pontiff1 I wrote this to mean a statically-linked shared object
-  ; whereas we actually want to this to be an object file suitable for compiling into a static executable
-  ; XXX shared doesn't mean dynamic, this makes a fake entrypoint lol
-  (define shared-clause (if library `("-DC_SHARED") '()))
+  ; XXX do I only want this at the toplevel?
+  ; XXX also chicken-install doesn't set -fPIC or -DPIC on static builds, why?
+  (define shared-clause (if (and dynamic library) `("-DC_SHARED") '()))
 
   (define args `(,cc ,infile "-o" ,outfile ,@(cflags) ,@shared-clause))
 
   (when verbose (printf "~A\n\n" (string-intersperse (cons env args))))
   (process-run env args))
 
-; link all
+; link all. this is never called for static libraries
 (define (ld module-tags artifact-tag #!key library static verbose)
   (define cc (symbol->string ((^.!! (keyw :cc)) (state:pfile))))
   (define ld (symbol->string ((^.!! (keyw :ld)) (state:pfile))))
-  (define infiles (map module->ofile module-tags))
+  (define infiles (map (lambda (tag) (module->ofile tag static)) module-tags))
   (define outfile (let ((basename (symbol->string artifact-tag)))
-                       (cond ((and library static) (make-pathname #f basename "static.o"))
-                             (library (make-pathname #f basename "so"))
-                             (else basename))))
+                       (if library (make-pathname #f basename "so") basename)))
 
-  ; XXX again almost certainly nix shared for static lib
   (define shared-clauses (if library `("-shared") '()))
   (define link-clauses (if static `("-static" "-l:libchicken.a") `("-lchicken")))
 
-  (define args `(,cc ,@infiles "-o" ,outfile ,(<> "-fuse-ld=" ld) ,@(ldflags)
+  ; this is extremely dumb but I don't think I can use chicken's link files without writing a parser for egg files
+  (define egg-infiles (if static (glob (make-pathname "eggs" "*.o")) '()))
+
+  (define args `(,cc ,@infiles ,@egg-infiles "-o" ,outfile ,(<> "-fuse-ld=" ld) ,@(ldflags)
                  ,@shared-clauses ,@link-clauses "-lm" "-ldl"))
 
   (when verbose (printf "~A\n\n" (string-intersperse (cons env args))))
@@ -180,8 +180,15 @@
 
   ; XXX chicken-install never calls ld for staticlibs ... does chicken pull in extensions automatically? does it for exes?
   ; ld complains about not finding a start symbol with static lib link, so probably unnecessary. need to test more
-  (process-join (ld all-module-tags ((^.!! (keyw :name)) artifact) :library library :static static :verbose verbose))
-  (printf "* ld done\n")
+  ; XXX UPDATE I am fairly sure the right thing is to link everything except static libs
+  ; thus linking a dynamic exe or lib only involves its local modules, with eggs and deps resolved at runtime
+  ; whereas linking a static exe we need to pull in *all* static object files for *every* dep/egg
+  ; this is extremely annoying... this must also be why csc naively creates shared objects for every single module
+  ; I... hm I think I can just create archive files, why do I need to copy what csc does?
+  (cond ((and static library) (printf "TODO ar rcs artname.a mod1.static.o mod2.static.o\n"))
+        (else (process-join (ld all-module-tags ((^.!! (keyw :name)) artifact)
+                                :library library :static static :verbose verbose))
+              (printf "* ld done\n")))
 
   (when (and dynamic library)
         (compile-import-so ((^.!! (keyw :root)) artifact) verbose)
