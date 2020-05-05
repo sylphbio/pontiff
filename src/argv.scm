@@ -22,6 +22,10 @@
                 (single-char #\l)
                 (value (optional <name>)))))
 
+(define gather-grammar
+  `((verbose  "verbose output"
+              (single-char #\v))))
+
 (define build-grammar
   `((all      "build all"
               (single-char #\a))
@@ -88,7 +92,14 @@
                    `(1 . "pontiff error: failed to build argv ix"))))
 
 (define (gather-builder argv)
-  (<either>-return (ix:build! 'pontiff:gather:argv)))
+  (do/m <either>
+    (args <- (maybe->either (getopt build-grammar argv)
+                            `(1 . ,usage-string)))
+    ; no extraneous input
+    (to-either (= (length (alist-ref '@ args)) 0)
+               `(1 . "pontiff error: extraneous input"))
+    (maybe->either (ix:build 'pontiff:gather:argv :verbose (alist-ref 'verbose args))
+                   `(1 . "pontiff error: failed to build argv ix"))))
 
 (define (build-builder argv)
   (do/m <either>
@@ -177,7 +188,7 @@ commands:
     by default new will start a project with one executable of the same name as the project
 
   gather
-
+#{(lpad (usage gather-grammar))}
   build
 #{(lpad (usage build-grammar))}
   run

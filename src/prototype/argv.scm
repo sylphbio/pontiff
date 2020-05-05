@@ -9,7 +9,7 @@
                                :artifact-type (enum pontiff:executable pontiff:library)
                                :artifact-name symbol))
 
-(define gather `(pontiff:gather:argv))
+(define gather `(pontiff:gather:argv :verbose boolean))
 
 ; XXX TODO --rebuild to ignore the hash stuff when I impl it
 ; XXX TODO --nogather to disable gather, this is necessary if build invokes gather invokes build

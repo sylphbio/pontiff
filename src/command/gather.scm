@@ -119,12 +119,24 @@
 
 ; XXX TODO I actually do want to write out the deplists, not to skip walking, but for the benefit of static linking
 (define (gather argv)
+  (define verbose ((^.!! (keyw :verbose)) argv))
+  (define egg-path (make-pathname `(,(state:working-path) ,(state:build-dir)) "eggs"))
   ; this clones, symlinks, or whatever every dependency, every dependency's dependency, etc
   ; then returns two lists of symbols as specified
+  (printf "fetching dependencies\n")
   (define eggs/deps (fetch-all-deps (access-dlist :dependencies (state:pfile))
                                     (access-dlist :egg-dependencies (state:pfile))
                                     '()))
-  ; next 
+  ; next we install all eggs locally to this project
+  (printf "compiling eggs\n")
+  (process-join (process-create (string-intersperse
+                                  `("/usr/bin/env" "chicken-install" ,@(map symbol->string (car eggs/deps))
+                                    ,@(if verbose '() `("| sed -n 's/^building.*/\\* &/p'"))))
+                                #f
+                                `(("CHICKEN_EGG_CACHE" . ,egg-path)
+                                  ("CHICKEN_INSTALL_REPOSITORY" . ,egg-path)
+                                  ("CHICKEN_REPOSITORY_PATH" . ,egg-path))
+                                (lambda (s) (and (substring=? s "building") (<> "* " (car (string-split s "\n")) "\n")))))
   (printf "MAZ e: ~S\n    d: ~S\n" (car eggs/deps) (cdr eggs/deps)))
 
 )

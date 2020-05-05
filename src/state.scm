@@ -5,9 +5,12 @@
 (import chicken.type)
 (import chicken.string)
 (import chicken.format)
+(import chicken.process)
 (import chicken.process-context)
 (import chicken.pathname)
+(import chicken.port)
 (import chicken.file)
+(import chicken.file.posix)
 (import chicken.io)
 
 (import tabulae)
@@ -32,9 +35,29 @@
 (define pfilename "pontiff.ix")
 (define (mfilename pname) (<> (symbol->string pname) "-modules.ix"))
 
+(define (init-build-dir pwd)
+  ; straightforward. does nothing if directories exist
+  (create-directory bdirname)
+  (create-directory (make-pathname bdirname "deps"))
+  (create-directory (make-pathname bdirname "eggs"))
+
+  ; should be /usr/lib/chicken/BINVER on normal systems
+  ; extremely annoyingly chicken dumps its eggs and its system import libs all in the same directory
+  ; we need to symlink system libs to our eggs dir, otherwise chicken-install won't install egg dependencies
+  ; this all goes away when pontiff manages the compiler and stdlib itself
+  (define chicken-repo (call-with-input-pipe "/usr/bin/env chicken-install -repository" read-line))
+  (for-each (lambda (src) (let ((dst (make-pathname `(,pwd ,bdirname "eggs") (pathname-strip-directory src))))
+                               (when (not (file-exists? dst)) (create-symbolic-link src dst))))
+            (glob (make-pathname chicken-repo "chicken.*.import.so")
+                  (make-pathname chicken-repo "srfi-4.import.so")
+                  (make-pathname chicken-repo "types.db"))))
+
 (define (init)
   ; set up ix prototypes
   (ix:init prototype:prototype)
+
+  (define pwd (current-directory))
+  (set-buffering-mode! (current-output-port) :full)
 
   ; load pfile, if it exists
   (define pfile (do/m <maybe>
@@ -46,11 +69,8 @@
   (define in-project (just? pfile))
   (define pfile-kv (if in-project `(:pfile ,(from-just pfile)) '()))
 
-  ; create-directory does nothing if the dir exists, so just run this always
-  (when in-project
-        (create-directory bdirname)
-        (create-directory (make-pathname bdirname "deps"))
-        (create-directory (make-pathname bdirname "eggs")))
+  ; everything init-build-dir does should be idempotent
+  (when in-project (init-build-dir pwd))
 
   ; this is an object with lists of modules last built, if empty nbd
   (define mfile (do/m <maybe>
@@ -64,7 +84,7 @@
                       (ix:build! 'pontiff:module:file :dynamic '() :static '())))
 
   (set! pstate (apply ix:build!
-    `(pontiff:state :working-path ,(current-directory)
+    `(pontiff:state :working-path ,pwd
                     :build-dir ,bdirname
                     :in-project ,in-project
                     ,@pfile-kv

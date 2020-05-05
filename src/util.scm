@@ -7,6 +7,7 @@
 (import chicken.format)
 (import chicken.process)
 (import chicken.process-context)
+(import chicken.port)
 (import chicken.file)
 (import chicken.io)
 
@@ -41,6 +42,7 @@
   (<> lead (string-intersperse kvs pad) ")\n"))
 
 ; same as process-run except it invokes execve instead of execvp
+; also always shell out to /bin/sh, using the user's shell seems like a recipe for madness
 (define (process-create cmd #!optional args vars)
   (let ((env (foldl (lambda (acc e) (alist-update (car e) (cdr e) acc equal?))
                     (get-environment-variables)
@@ -48,7 +50,7 @@
         (pid (process-fork)))
        (cond ((not (= pid 0)) pid)
              (args (process-execute cmd args env))
-             (else (process-execute (alist-ref "SHELL" env equal? "/bin/sh") `("-c" ,cmd) env)))))
+             (else (process-execute "/bin/sh" `("-c" ,cmd) env)))))
 
 (define (process-join pid)
   (call-with-values (lambda () (process-wait pid))
