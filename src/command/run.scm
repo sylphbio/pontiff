@@ -15,12 +15,11 @@
 (import (prefix state state:))
 (import util)
 
-; XXX TODO FIXME when I write my own process-run replacement I don't need to cd anymore
 (define (run argv)
   (define exe (symbol->string ((^.!! (keyw :artifact) (keyw :name)) argv)))
-  (change-directory (state:build-dir))
   (printf "running ~A...\n" exe)
-  (process-join (process-run (make-pathname "." exe) ((^.!! (keyw :exec-args)) argv)))
-  (change-directory (state:working-path)))
+  (process-join (process-create (make-pathname `(,(state:working-path) ,(state:build-dir)) exe)
+                                (map ix:unwrap! ((^.!! (keyw :exec-args)) argv))
+                                (state:env))))
 
 )

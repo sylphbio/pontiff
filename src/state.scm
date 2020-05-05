@@ -1,4 +1,4 @@
-(module state (init version version-string working-path build-dir in-project pfile mfile save-pfile save-mfile)
+(module state (init version version-string working-path build-dir in-project pfile mfile save-pfile save-mfile env)
 
 (import scheme)
 (import chicken.base)
@@ -83,22 +83,33 @@
                       (from-just mfile)
                       (ix:build! 'pontiff:module:file :dynamic '() :static '())))
 
+  ; set these via process-create when using chicken-install or invoking chicken binaries
+  ; converts to alist on access. I don't support scheme pairs in ix (vehemently so)
+  (define deppath (make-pathname `(,pwd ,bdirname) "deps"))
+  (define eggpath (make-pathname `(,pwd ,bdirname) "eggs"))
+  (define env `(("CHICKEN_EGG_CACHE" ,eggpath)
+                ("CHICKEN_INSTALL_REPOSITORY" ,eggpath)
+                ("CHICKEN_REPOSITORY_PATH" ,(<> deppath ":" eggpath))))
+
   (set! pstate (apply ix:build!
     `(pontiff:state :working-path ,pwd
                     :build-dir ,bdirname
                     :in-project ,in-project
                     ,@pfile-kv
-                    :mfile ,mfile-v))))
+                    :mfile ,mfile-v
+                    :env ,env))))
 
-(define (access kw) (and pstate (ix:unwrap! ((^.! (keyw kw)) pstate))))
+(define (access kw) (and pstate ((^.! (keyw kw)) pstate)))
+(define (access! kw) (and pstate ((^.!! (keyw kw)) pstate)))
 
-(define (working-path)   (access :working-path))
-(define (build-dir)      (access :build-dir))
-(define (in-project)     (access :in-project))
+(define (working-path) (access! :working-path))
+(define (build-dir)    (access! :build-dir))
+(define (in-project)   (access! :in-project))
 ; file is optional, so this may fail. we force from-just for interface uniformity
-; caller should check in-project first, that is the point of its existence
-(define (pfile)          (and pstate ((^.! (keyw :pfile)) pstate)))
-(define (mfile)          (and pstate ((^.! (keyw :mfile)) pstate)))
+; we gate any command except new by in-project anyway
+(define (pfile)        (access :pfile))
+(define (mfile)        (access :mfile))
+(define (env)          (map (lambda (prod) (cons (ix:unwrap! (second* prod)) (ix:unwrap! (third* prod)))) (access! :env)))
 
 (define (save-pfile sx)
   (if (not (file-exists? pfilename))

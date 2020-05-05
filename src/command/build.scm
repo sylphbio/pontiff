@@ -51,7 +51,7 @@
          ; defined as hash(file hash || all import subgraph hashes sorted by name)
          (mk-leaf-obj (lambda (v/e)
            (let* ((pmodule (tag->module objs (first* v/e)))
-                  (sg-hashes (map (lambda (e) ((^.!! (keyw :subgraph-hash)) (tag->module objs e)))
+                  (sg-hashes (map (lambda (e) ((^.!! (keyw :subgraph-hash)) (tag->module acc e)))
                                   (sort (second* v/e) (lambda (s1 s2) (string<? (symbol->string s1) (symbol->string s2))))))
                   (sg-hash (<> "sha1:" (string->sha1sum (apply <> `(,((^.!! (keyw :file-hash)) pmodule) ,@sg-hashes))))))
                  ((.~! sg-hash (keyw :subgraph-hash)) pmodule)))))
@@ -60,14 +60,17 @@
               (else (sort-dag branches objs (<> acc (map mk-leaf-obj leaves)))))))
 
 ; after a build we write the module list to disk
-; this loads it if it exists and filters out subgraphs unchanged since the previous build
-(define (trim-subgraphs objs mlist)
+; this loads it if it exists and marks as skippable subgraphs unchanged since the previous build
+; the map should be read "mark as skippable if any in the mlist matches on all of name, is-root, and subgraph-hash
+(define (skip-subgraphs objs mlist)
   (let ((match-kw (lambda (kw o1 o2) (equal? ((^. (keyw kw)) o1) ((^. (keyw kw)) o2)))))
-       (filter* (lambda (o1) (not (any* (lambda (o2) (and (match-kw :name o1 o2)
-                                                          (match-kw :is-root o1 o2)
-                                                          (match-kw :subgraph-hash o1 o2)))
-                                        mlist)))
-                objs)))
+       (map (lambda (mutandum) ((.~! (any* (lambda (model) (and (match-kw :name mutandum model)
+                                                                (match-kw :is-root mutandum model)
+                                                                (match-kw :subgraph-hash mutandum model)))
+                                           mlist)
+                                     (keyw :skip-compile))
+                                mutandum))
+            objs)))
 
 (define (load-module m)
   (letrec ((path (module-path m))
@@ -113,7 +116,7 @@
                     ; I don't do anything with the other lists but could be nice to sanity check things?
                     (local-imports (difference* imports system-libs pontiff-libs egg-libs)))
                    (ix:build! 'pontiff:module :name m :path path :file-hash (<> "sha1:" (sha1sum (module-path m)))
-                                              :subgraph-hash "" :is-root #f :local-imports local-imports)))))
+                                              :subgraph-hash "" :is-root #f :skip-compile #f :local-imports local-imports)))))
            ; a file should be nothing but compiler declarations and a single module
            ; the core constraint of pontiff is that one file = one module = one compilation unit
            (read-file (lambda (port)
@@ -167,27 +170,30 @@
   ; filter out modules whose local subgraphs have not changed
   ; remember, we build two artifacts for libraries but one for executables
   ; XXX dep refresh should always force a full rebuild in case imported macros change
-  ; XXX TODO FIXME this is fundamentally flawed!! we replace mfile list with whatever we have left after filtering
-  ; the reason I didn't notice this sooner is we don't do anything if we filter it to nothing
+  ; XXX TODO FIXME this is fundamentally flawed for multi-artifact projects!!
   ; what I actually want is a freeform ix object wth every module/static/root triple a key, sg hash a value
-  ; and then we *add* our trimmed hashes, not replace them
-  ; importantly, we don't even want to use the unfiltered list, otherwise we lose data on other artifacts' modules
+  ; we can't just replace unfiltered lists, otherwise we lose data on other artifacts' modules
   (printf "* determining build order... ")
-  (define dyn-modules (and build-dynamic (trim-subgraphs sorted-modules ((^.!! (keyw :dynamic)) (state:mfile)))))
-  (define stat-modules (and build-static (trim-subgraphs sorted-modules ((^.!! (keyw :static)) (state:mfile)))))
+  (define dyn-modules (and build-dynamic (skip-subgraphs sorted-modules ((^.!! (keyw :dynamic)) (state:mfile)))))
+  (define stat-modules (and build-static (skip-subgraphs sorted-modules ((^.!! (keyw :static)) (state:mfile)))))
+  (define do-dyn (and dyn-modules (not (null? (filter-skippable dyn-modules)))))
+  (define do-stat (and stat-modules (not (null? (filter-skippable stat-modules)))))
   (printf "done\n")
 
   ; note we use the filtered list in compile and write the unfiltered list to modules.ix
   (cond (dry-run (printf "~S: dryrun finished\n\n" aname))
-        ((and (or (not dyn-modules) (null? dyn-modules))
-              (or (not stat-modules) (null? stat-modules))) (printf "~S: nothing to do\n" aname))
-        (else (when (and dyn-modules (not (null? dyn-modules)))
-                    (printf "compiling ~S/~S modules (dynamic)\n" (length dyn-modules) (length sorted-modules))
+        ((and (not do-dyn) (not do-stat)) (printf "~S: nothing to do\n" aname))
+        (else (when do-dyn
+                    (printf "compiling ~S/~S modules (dynamic)\n"
+                            (length (filter-skippable dyn-modules))
+                            (length dyn-modules))
                     (compile dyn-modules artifact #f verbose)
                     (printf "compilation complete\n")
                     (state:save-mfile ((.~! (ix:wrap 'list dyn-modules) (keyw :dynamic)) (state:mfile))))
-              (when (and stat-modules (not (null? stat-modules)))
-                    (printf "compiling ~S/~S modules (static)\n" (length stat-modules) (length sorted-modules))
+              (when do-stat
+                    (printf "compiling ~S/~S modules (static)\n"
+                            (length (filter-skippable stat-modules))
+                            (length stat-modules))
                     (compile stat-modules artifact #t verbose)
                     (printf "compilation complete\n")
                     (state:save-mfile ((.~! (ix:wrap 'list stat-modules) (keyw :static)) (state:mfile))))

@@ -9,6 +9,7 @@
                                   :file-hash string
                                   :subgraph-hash string
                                   :is-root boolean
+                                  :skip-compile boolean
                                   :local-imports (list symbol)))
 
 (define p-mfile `(pontiff:module:file :dynamic (list (sexp pontiff:module))
@@ -18,6 +19,7 @@
                                 :build-dir string
                                 :in-project boolean
                                 :pfile (optional (sexp pontiff))
-                                :mfile (sexp pontiff:module:file)))
+                                :mfile (sexp pontiff:module:file)
+                                :env (list (product string string))))
 
 )

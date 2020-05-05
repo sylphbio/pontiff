@@ -154,29 +154,25 @@
                            leaves)))
             (compile-loop branches modules (<> acc cc-pids) artifact static verbose))))
 
-; XXX ok wtf do I have to do for this shit
-; this only gets called for a dynamic library
-; it's compiled like a normal so. no unit... toplevel takes care of that
-; no uses, pass in no imports. include build dir in path
+; builds an import shared object for a dynamic library
+; fairly simple one-file build, no uses no units no imports
 (define (compile-import-so tag verbose)
   (define import-tag (symbol-append tag '.import))
   (define import-file (make-pathname (state:build-dir) (symbol->string import-tag) "scm"))
-
   (process-join (csc import-tag import-file :is-root #t :is-module #f :library #t :static #f :verbose verbose))
   (process-join (cc import-tag :is-root #t :library #t :static #f :verbose verbose))
   (process-join (ld `(,import-tag) import-tag :library #t :static #f :verbose verbose)))
 
 ; XXX TODO FIXME we need to pass deps to ld when building statically, figure this out as I implement pontiff gather
-; XXX TODO FIXME testing with a trivial lib/exe pair, I need to be in .pontiff-work when running exe for it to pick up lib
 (define (compile modules artifact static verbose)
-  (define adjlist (map module->adjlist modules))
-  (define module-tags (map car adjlist))
+  (define filtered-adjlist (map module->adjlist (filter-skippable modules)))
+  (define all-module-tags (map (^.!! (keyw :name)) modules))
   (define library (library? artifact))
   (define dynamic (not static))
 
   (change-directory (state:build-dir))
 
-  (define cc-pids (compile-loop adjlist modules '() artifact static verbose))
+  (define cc-pids (compile-loop filtered-adjlist modules '() artifact static verbose))
   (printf "* csc done\n")
 
   (for-each process-join cc-pids)
@@ -184,7 +180,7 @@
 
   ; XXX chicken-install never calls ld for staticlibs ... does chicken pull in extensions automatically? does it for exes?
   ; ld complains about not finding a start symbol with static lib link, so probably unnecessary. need to test more
-  (process-join (ld module-tags ((^.!! (keyw :name)) artifact) :library library :static static :verbose verbose))
+  (process-join (ld all-module-tags ((^.!! (keyw :name)) artifact) :library library :static static :verbose verbose))
   (printf "* ld done\n")
 
   (when (and dynamic library)

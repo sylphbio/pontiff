@@ -24,6 +24,9 @@
                          (eq? (ix:ident->tag ((^.! ident) a)) 'pontiff:library)
                          (error "not ix sexp" a)))
 
+(define (filter-skippable mm)
+  (filter* (lambda (m) (not ((^.!! (keyw :skip-compile)) m))) mm))
+
 (define (save-file path str)
   (call-with-output-file path (lambda (p) (write-string str #f p))))
 
