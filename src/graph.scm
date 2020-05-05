@@ -12,7 +12,7 @@
 ; takes module object to tag and list of import tags
 (define (module->adjlist m)
   `(,((^.!! (keyw :name)) m)
-    ,((^.!! (keyw :local-imports)) m)))
+    ,(map ix:unwrap! ((^.!! (keyw :local-imports)) m))))
 
 ; given a module list, go from tag to module
 ; this is here because I use it to go back from adjlist tags

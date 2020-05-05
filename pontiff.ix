@@ -1,0 +1,18 @@
+(pontiff :name pontiff
+         :version {0 1 0}
+         :pontiff-version {0 1 0}
+         :synopsis "a haskell-style build system for chicken scheme"
+         :authors ["alice maz"]
+         :license "BSD-3"
+         :repository (pontiff:repository :name pontiff :vcs git :url "")
+         :source-dir "src"
+         :test-dir "test"
+         :csc-flags ["-keyword-style" "prefix" "-specialize" "-local" "-lfa2" "-inline" "-inline-global" "-optimize-leaf-routines"]
+         :cc clang
+         :ld lld
+         :artifacts [(pontiff:executable :name pontiff2 :root bin.pontiff)]
+         :tests [(pontiff:executable :name unit :root test.unit) (pontiff:executable :name integration :root test.integration)]
+         :dependencies []
+         :resolver alice
+         :egg-dependencies [srfi-1 getopt-long simple-sha1 uuid test]
+         :egg-resolver chicken-install)

@@ -140,7 +140,7 @@
   (if (null? to-load)
       ((.~! #t (idx 0) (keyw :is-root)) (reverse loaded))
       (let* ((m (load-module (car to-load)))
-             (m-imports (map (^.!! (keyw :name)) ((^.!! (keyw :local-imports)) m)))
+             (m-imports (map ix:unwrap! ((^.!! (keyw :local-imports)) m)))
              (loaded^ (cons m loaded))
              (to-load^ (union* (cdr to-load) (difference* m-imports (map (^.!! (keyw :name)) loaded^)))))
             (load-all-modules to-load^ loaded^))))
@@ -180,7 +180,7 @@
   ; note we use the filtered list in compile and write the unfiltered list to modules.ix
   (cond (dry-run (printf "~S: dryrun finished\n\n" aname))
         ((and (or (not dyn-modules) (null? dyn-modules))
-              (or (not stat-modules) (null? stat-modules))) (printf "~S: nothing to do\n\n" aname))
+              (or (not stat-modules) (null? stat-modules))) (printf "~S: nothing to do\n" aname))
         (else (when (and dyn-modules (not (null? dyn-modules)))
                     (printf "compiling ~S/~S modules (dynamic)\n" (length dyn-modules) (length sorted-modules))
                     (compile dyn-modules artifact #f verbose)
