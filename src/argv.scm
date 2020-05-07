@@ -27,16 +27,20 @@
               (single-char #\v))))
 
 (define build-grammar
-  `((all      "build all"
-              (single-char #\a))
-    (artifact "build specified artifact"
-              (single-char #\A)
-              (value (required <name>)))
-    (dry-run  "exit before invoking the compiler")
-    (static   "link executable statically"
-              (single-char #\s))
-    (verbose  "verbose output"
-              (single-char #\v))))
+  `((all       "build all artifacts"
+               (single-char #\a))
+    (all-libs  "build all libraries")
+    (artifact  "build specified artifact"
+               (single-char #\A)
+               (value (required <name>)))
+    (dry-run   "exit before invoking the compiler")
+    (force     "build all compilation units even if unchanged"
+               (single-char #\f))
+    (no-gather "do not fetch or build dependencies")
+    (static    "link executable statically"
+               (single-char #\s))
+    (verbose   "verbose output"
+               (single-char #\v))))
 
 (define run-grammar
   `((artifact "run specified artifact"
@@ -50,6 +54,10 @@
                  (single-char #\i))
     (unit        "run unit tests (default)"
                  (single-char #\u))))
+
+(define clean-grammar
+  `((depclean "also remove all dependencies"
+              (single-char #\d))))
 
 (define (getopt grammar argv)
   (do/m <maybe>
@@ -108,22 +116,22 @@
     ; no extraneous input
     (to-either (= (length (alist-ref '@ args)) 0)
                `(1 . "pontiff error: extraneous input"))
-    ; all/artifact mutually exclusive
-    (to-either (not (and (alist-ref 'all args) (alist-ref 'artifact args)))
-               `(1 . "pontiff error: cannot specify --all and --artifact"))
     ; this is safe because I validate the file when state loads it
     (declare project-artifacts ((^.!! (keyw :artifacts)) (state:pfile)))
-    ; as in, artifacts under consideration
-    (artifacts <- (cond ((alist-ref 'artifact args)
-                         (<$> list (locate-artifact project-artifacts (string->symbol (alist-ref 'artifact args)))))
-                        ((or (alist-ref 'all args) (= (length project-artifacts) 1))
-                         (return project-artifacts))
-                        (else (fail `(1 . "pontiff error: could not determine suitable artifact")))))
+    ; all > all-libs > artifact > implicit
+    (build-artifacts <- (cond ((alist-ref 'all args) (return project-artifacts))
+                              ((alist-ref 'all-libs args) (return (filter* library? project-artifacts)))
+                              ((alist-ref 'artifact args)
+                               (<$> list (locate-artifact project-artifacts (string->symbol (alist-ref 'artifact args)))))
+                              ((= (length project-artifacts) 1) (return project-artifacts))
+                              (else (fail `(1 . "pontiff error: could not determine suitable artifact")))))
     ; static flag is only meaningful for executables because libraries always build both
-    (to-either (not (and (alist-ref 'static args) (any* library? artifacts)))
-               `(1 . "pontiff error: cannot specify --static for library"))
-    (maybe->either (ix:build 'pontiff:build:argv :artifacts artifacts
+    (to-either (not (and (alist-ref 'static args) (any* library? build-artifacts)))
+               `(1 . "pontiff error: cannot specify --static for libraries"))
+    (maybe->either (ix:build 'pontiff:build:argv :artifacts build-artifacts
                                                  :dry-run (alist-ref 'dry-run args)
+                                                 :force (alist-ref 'force args)
+                                                 :gather (not (alist-ref 'no-gather args))
                                                  :static (alist-ref 'static args)
                                                  :verbose (alist-ref 'verbose args))
                    `(1 . "pontiff error: failed to build argv ix"))))
@@ -147,6 +155,11 @@
     (maybe->either (ix:build 'pontiff:run:argv :artifact artifact :exec-args (drop* (+ argv-div 1) argv))
                    `(1 . "pontiff error: failed to build argv ix"))))
 
+; XXX TODO restructure this kinda like build with a pref stack of what actually to run
+; --unit and --integration should be shorthands for an -A flag of those names
+; and we pass throuhg a list of artifacts to foreach, rather than expecting our format is hardcoded
+; because we allow it to be changed so we should be flexible for that eventuality
+; all > unit = integration > artifact > implicit unit > implicit single
 (define (test-builder argv)
   (do/m <either>
     (args <- (maybe->either (getopt test-grammar argv)
@@ -163,7 +176,15 @@
     (maybe->either (ix:build 'pontiff:test:argv :type test-type)
                    `(1 . "pontiff error: failed to build argv ix"))))
 
-(define (clean-builder argv) '())
+(define (clean-builder argv)
+  (do/m <either>
+    (args <- (maybe->either (getopt clean-grammar argv)
+                            `(1 . ,usage-string)))
+    ; no extraneous input
+    (to-either (= (length (alist-ref '@ args)) 0)
+               `(1 . "pontiff error: extraneous input"))
+    (maybe->either (ix:build 'pontiff:clean:argv :depclean (alist-ref 'depclean args))
+                   `(1 . "pontiff error: failed to build argv ix"))))
 
 (define (command-builder cmd)
   (to-maybe (case cmd
@@ -196,7 +217,7 @@ commands:
   test
 #{(lpad (usage test-grammar))}
   clean
-
+#{(lpad (usage clean-grammar))}
 EOF
 
 ))

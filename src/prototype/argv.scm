@@ -9,12 +9,13 @@
                                :artifact-type (enum pontiff:executable pontiff:library)
                                :artifact-name symbol))
 
+; XXX TODO --force to ignore deps.ix when I impl that. should also clear modules.ix 
 (define gather `(pontiff:gather:argv :verbose boolean))
 
-; XXX TODO --rebuild to ignore the hash stuff when I impl it
-; XXX TODO --nogather to disable gather, this is necessary if build invokes gather invokes build
 (define build `(pontiff:build:argv :artifacts (list (sum (sexp pontiff:executable) (sexp pontiff:library)))
                                    :dry-run boolean
+                                   :force  boolean
+                                   :gather boolean
                                    :static boolean
                                    :verbose boolean))
 
@@ -23,7 +24,6 @@
 
 (define test `(pontiff:test:argv :type (enum unit integration all)))
 
-; XXX TODO --deps to also wipe out dependencies
-(define clean `(pontiff:clean:argv))
+(define clean `(pontiff:clean:argv :depclean boolean))
 
 )

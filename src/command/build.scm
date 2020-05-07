@@ -18,6 +18,7 @@
 (import (prefix state state:))
 (import util)
 (import graph)
+(import (prefix command.gather command:))
 (import command.build.compiler)
 
 ; x.y.z -> (x y z) and vice versa
@@ -149,7 +150,7 @@
             (load-all-modules to-load^ loaded^))))
 
 ; build a single artifact
-(define (build-artifact artifact #!optional verbose static dry-run)
+(define (build-artifact artifact #!optional verbose static dry-run force-build)
   (define aname ((^.!! (keyw :name)) artifact))
   (define aroot ((^.!! (keyw :root)) artifact))
   (define build-dynamic (or (library? artifact) (not static)))
@@ -169,16 +170,21 @@
 
   ; filter out modules whose local subgraphs have not changed
   ; remember, we build two artifacts for libraries but one for executables
-  ; XXX dep refresh should always force a full rebuild in case imported macros change
   ; XXX TODO FIXME this is fundamentally flawed for multi-artifact projects!!
   ; what I actually want is a freeform ix object wth every module/static/root triple a key, sg hash a value
   ; we can't just replace unfiltered lists, otherwise we lose data on other artifacts' modules
   ; XXX FIXME I also need to track whether we have last built a static or dynamic executable, or else always at least link
   (printf "* determining build order... ")
-  (define dyn-modules (and build-dynamic (skip-subgraphs sorted-modules ((^.!! (keyw :dynamic)) (state:mfile)))))
-  (define stat-modules (and build-static (skip-subgraphs sorted-modules ((^.!! (keyw :static)) (state:mfile)))))
-  (define do-dyn (and dyn-modules (not (null? (filter-skippable dyn-modules)))))
-  (define do-stat (and stat-modules (not (null? (filter-skippable stat-modules)))))
+  (define dyn-modules (cond ((and build-dynamic force-build) sorted-modules)
+                            (build-dynamic (skip-subgraphs sorted-modules ((^.!! (keyw :dynamic)) (state:mfile))))
+                            (else '())))
+
+  (define stat-modules (cond ((and build-static force-build) sorted-modules)
+                             (build-static (skip-subgraphs sorted-modules ((^.!! (keyw :static)) (state:mfile))))
+                             (else '())))
+
+  (define do-dyn (not (null? (filter-skippable dyn-modules))))
+  (define do-stat (not (null? (filter-skippable stat-modules))))
   (printf "done\n")
 
   ; note we use the filtered list in compile and write the unfiltered list to modules.ix
@@ -189,23 +195,30 @@
                             (length (filter-skippable dyn-modules))
                             (length dyn-modules))
                     (compile dyn-modules artifact #f verbose)
-                    (printf "compilation complete\n")
+                    (printf "compilation finished\n")
                     (state:save-mfile ((.~! (ix:wrap 'list dyn-modules) (keyw :dynamic)) (state:mfile))))
               (when do-stat
                     (printf "compiling ~S/~S modules (static)\n"
                             (length (filter-skippable stat-modules))
                             (length stat-modules))
                     (compile stat-modules artifact #t verbose)
-                    (printf "compilation complete\n")
+                    (printf "compilation finished\n")
                     (state:save-mfile ((.~! (ix:wrap 'list stat-modules) (keyw :static)) (state:mfile))))
-              (printf "~S: build finished\n" aname))))
+              (printf "~S build finished\n" aname))))
 
 (define (build argv)
   (define verbose ((^.!! (keyw :verbose)) argv))
   (define static ((^.!! (keyw :static)) argv))
   (define dry-run ((^.!! (keyw :dry-run)) argv))
-  ; XXX TODO call gather here
-  (for-each (lambda (a) (build-artifact a verbose static dry-run))
-            ((^.!! (keyw :artifacts)) argv)))
+  (define force-build ((^.!! (keyw :force)) argv))
+
+  ; gather deps for all artifacts
+  (when ((^.!! (keyw :gather)) argv)
+        (command:gather (ix:build! 'pontiff:gather:argv :verbose verbose)))
+
+  ; build each artifact in turn
+  (for-each (lambda (a) (build-artifact a verbose static dry-run force-build))
+            ((^.!! (keyw :artifacts)) argv))
+  (printf "all builds complete\n"))
 
 )

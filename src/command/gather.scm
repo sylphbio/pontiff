@@ -17,28 +17,6 @@
 (import (prefix state state:))
 (import util)
 
-; XXX ok take three start thinking fresh
-; envs I need to care about CHICKEN_EGG_CACHE, CHICKEN_INSTALL_REPOSITORY, and CHICKEN_REPOSITORY_PATH
-; work should have a deps dir and an eggs dir
-; * clone/curl all deps, recursively. this function will be structured much like load-all-modules
-; * map all (project and deps) pontiff files to their egg lists, flatten and nub
-; * chicken-install all eggs, using my eggs dir as cache, install repo, and repo path
-; * build and "install" deps in order, using base of the deps dir as the target
-;   install entails copying the so, link, import so, and pontiff files, and renaming the static toplevel to just o
-;   always build with --all and copy all lib artifacts. note dep list specifies project, not artifact
-;   eg, you require tabulae, build all results incidentally in parsec and monad which may be imported with no further spec
-; * write out a projname-deps.ix file that lists the eggs and pontiff deps we have fetched
-;   then next init call we only fetch new deps
-; oh actually I can strip project name out of modules file if I'm not merging work dirs
-; I still need a deps file for static linking. also I think I can build pontiff deps in parallel
-; the way static linking actually appears to work is the chicken -static flag says like
-; "we are going to link in the missing units when we build our finished executable"
-; I think. chicken compiler may pull in eggs somehow but I... think it doesn't
-; in theory, building a lib/exe dynamic it expects to find sos at runtime... wait no it still expects to see import sos
-; anyway with static I think it defers that and you just pull everything together in linking
-; this is so messy, wild random guessing. grepping through chicken-core is only moderately helpful tho
-; just need to test systematically
-
 ; XXX OK TOMLORROW NEXT I got static builds working, I fixed a bunch of bugs, so next to finish gather I want to
 ; * get rid of linkfiles, useless
 ; * compile should make archives for static libraries
@@ -47,11 +25,17 @@
 ; at this point deps should fully work in theory and we can...
 ; * impl clean, including depclean
 ; * split out ix and tabulae
-; * impl ix generic and fix modules.ix to use it (also record latest exe type)
+; * impl ix generic and fix modules.ix to use it (also record latest exe type, also rename back to modules.ix)
 ; * give a pontiff file to uuid
 ; * add nogather/alllibs flags to build and call gather in build
 ; and then... I think we're ready to launch?
 ; and then I want to impl json conversion in ix for viv and rewrite the sbml parser
+
+; XXX TODO I keep getting confused on why and why not I actually want a deps.ix file
+; * record which deps we have actually built. unless forced to refresh we don't want to even attempt rebuilds
+;   ideally after the first gather it's totally silent/basically a noop every time you call build unless you change the deplist
+;   in which case it would only get the new things that are needed
+; * deps.ix would not help with linking, I need to determine what to link on an artifact-by-artifact basis
 
 ; dumb convenience function
 (define (access-dlist kw sx)
@@ -132,10 +116,15 @@
              (to-load^ (union-by* dep=? (cdr to-load) (difference-by* dep=? new-deps loaded^))))
             (fetch-all-deps to-load^ eggs^ loaded^))))
 
+; the basic flow here is we recursively clone/curl/link our project's pontiff deps, their deps, etc
+; nub out two flat lists of eggs and deps. chicken-install all the eggs locally to the project
+; chicken-install handles missing egg dependencies, so we never need to touch egg files
+; it does annoyingly force us to link all eggs to all artifacts however
+; then with eggs in place we can build our pontiff deps and link the artifacts in a central location
+; unfortunately because chicken needs to see import libraries we have to do this all in serial
 (define (gather argv)
   (define verbose ((^.!! (keyw :verbose)) argv))
-  ; this clones, symlinks, or whatever every dependency, every dependency's dependency, etc
-  ; then returns two lists of symbols as specified
+  ; fetch pontiff dependencies recursively, returning a pair of a list of egg names and dep names
   (printf "fetching dependencies\n")
   (define eggs/deps (fetch-all-deps (access-dlist :dependencies (state:pfile))
                                     (access-dlist :egg-dependencies (state:pfile))
@@ -151,9 +140,8 @@
   (for-each (lambda (name)
     (let ((dpath (make-pathname `(,(state:working-path) ,(state:build-dir) "deps") (symbol->string name))))
          (change-directory dpath)
-         ; XXX TODO --no-gather, --all-libs
          (process-join (process-create "/usr/bin/env"
-                                       `("pontiff2" "build" "--all" ,@(if verbose `("--verbose") '()))
+                                       `("pontiff2" "build" "--all-libs" "--no-gather" ,@(if verbose `("--verbose") '()))
                                        (state:env)))
          (for-each (lambda (src) (let ((dst (normalize-pathname (make-pathname `(,dpath "..") (pathname-strip-directory src)))))
                                       (when (not (file-exists? dst)) (create-symbolic-link src dst))))
