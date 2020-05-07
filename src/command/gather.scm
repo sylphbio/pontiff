@@ -28,6 +28,8 @@
 ; * impl ix generic and fix modules.ix to use it (also record latest exe type, also rename back to modules.ix)
 ; * give a pontiff file to uuid
 ; * add nogather/alllibs flags to build and call gather in build
+; * make vc handling its own module with a single generic interface
+; * make a separate module from state to contain hardcoded values like pfile/mfile/dfile names etc
 ; and then... I think we're ready to launch?
 ; and then I want to impl json conversion in ix for viv and rewrite the sbml parser
 
@@ -141,7 +143,7 @@
     (let ((dpath (make-pathname `(,(state:working-path) ,(state:build-dir) "deps") (symbol->string name))))
          (change-directory dpath)
          (process-join (process-create "/usr/bin/env"
-                                       `("pontiff2" "build" "--all-libs" "--no-gather" ,@(if verbose `("--verbose") '()))
+                                       `("pontiff" "build" "--all-libs" "--no-gather" ,@(if verbose `("--verbose") '()))
                                        (state:env)))
          (for-each (lambda (src) (let ((dst (normalize-pathname (make-pathname `(,dpath "..") (pathname-strip-directory src)))))
                                       (when (not (file-exists? dst)) (create-symbolic-link src dst))))

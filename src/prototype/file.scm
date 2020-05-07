@@ -1,8 +1,23 @@
-(module prototype.file *
+(module prototype.file (file repo dir exe lib)
 
 (import scheme)
 (import chicken.base)
 (import chicken.type)
+
+; mostly following egg categories, with the following changes:
+; * lang-exts -> lang
+; * debugging -> debug
+; * xml -> (subsumed under parse)
+; * doc-tools -> doc
+; * egg-tools -> (subsumed under tools)
+; * data -> cs
+; * parsing -> parse
+; * testing -> test
+; * code-generation -> codegen
+; * hell -> thread
+; we also add the tags list, which allows multiple unconstrained appellations
+(define cats `(lang graphics debug logic net io db os ffi web doc math oop cs parse tools
+               sound test crypto ui codegen macros misc thread uncategorized obselete))
 
 (define file `(pontiff :name symbol
                        :version (product natural natural natural)
@@ -12,6 +27,9 @@
                        :maintainers (optional (list string))
                        :license string
                        :repository (sexp pontiff:repository)
+                       :website (optional string)
+                       :category (enum ,@cats)
+                       :tags (list symbol)
                        :source-dir string
                        :test-dir string
                        :csc-flags (list string)

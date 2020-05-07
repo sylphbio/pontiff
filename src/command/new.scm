@@ -33,6 +33,8 @@
                       :authors '()
                       :license "BSD-3"
                       :repository repo
+                      :category 'uncategorized
+                      :tags '()
                       :source-dir "src"
                       :test-dir "test"
                       :csc-flags `("-keyword-style" "prefix" "-specialize" "-local" "-lfa2"
