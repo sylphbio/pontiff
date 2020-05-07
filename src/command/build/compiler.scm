@@ -17,7 +17,7 @@
 (import util)
 (import graph)
 
-(define env "/usr/bin/env")
+(define binenv "/usr/bin/env")
 
 ; XXX ask about -no-module-registration text on wiki says it can be used if making your own import libraries?
 ; these are all functions because pwd needs to happen after state:init
@@ -44,9 +44,6 @@
 (define (module->types tag)
   (make-pathname #f (module->unit tag) "types"))
 
-(define (module->link tag)
-  (make-pathname #f (module->unit tag) "link"))
-
 ; compile a single scm to c
 (define (csc tag path #!key is-root (local-imports '()) (is-module #t) library static verbose)
   (define executable (not library))
@@ -57,7 +54,6 @@
   (define outfile (module->cfile tag static))
   (define inlinefile (module->inline tag))
   (define typefile (module->types tag))
-  (define linkfile (module->link tag))
   (define user-flags (map ix:unwrap! ((^.!! (keyw :csc-flags)) (state:pfile))))
 
   ; anything except an exe root is a unit
@@ -78,12 +74,9 @@
                               local-imports))
 
   ; XXX not clear on whether these things should be set for toplevel or all modules
-  ; XXX I don't actually know if the linkfile is used by chicken, or if it's just for my convenience if I need it
-  (define toplevel-clauses (cond ((and dynamic library is-root)
-                                  `("-dynamic" "-feature" "chicken-compile-shared"))
-                                 ((and static library is-root)
-                                  `("-emit-link-file" ,linkfile))
-                                 (else '())))
+  (define toplevel-clauses (if (and dynamic library is-root)
+                               `("-dynamic" "-feature" "chicken-compile-shared")
+                               '()))
 
   (define static-clauses (if static
                              `("-static" "-module-registration")
@@ -92,8 +85,8 @@
   (define args `("chicken" ,infile "-output-file" ,outfile ,@(cscflags) ,@user-flags
                  ,@unit-clauses ,@uses-clauses ,@toplevel-clauses ,@static-clauses))
 
-  (when verbose (printf "~A\n\n" (string-intersperse (cons env args))))
-  (process-run env args))
+  (when verbose (printf "~A\n\n" (string-intersperse (cons binenv args))))
+  (process-run binenv args))
 
 ; compile a single c to o
 (define (cc tag #!key is-root library static verbose)
@@ -108,8 +101,19 @@
 
   (define args `(,cc ,infile "-o" ,outfile ,@(cflags) ,@shared-clause))
 
-  (when verbose (printf "~A\n\n" (string-intersperse (cons env args))))
-  (process-run env args))
+  (when verbose (printf "~A\n\n" (string-intersperse (cons binenv args))))
+  (process-run binenv args))
+
+; combine object files for static libs into a single archive
+; this way an importer need know nothing about the internal structure of its imports
+(define (ar module-tags artifact-tag #!key verbose)
+  (define infiles (map (lambda (tag) (module->ofile tag #t)) module-tags))
+  (define outfile (make-pathname #f (symbol->string artifact-tag) "a"))
+
+  (define args `("ar" "rcs" ,outfile ,@infiles))
+
+  (when verbose (printf "~A\n\n" (string-intersperse (cons binenv args))))
+  (process-run binenv args))
 
 ; link all. this is never called for static libraries
 (define (ld module-tags artifact-tag #!key library static verbose)
@@ -122,14 +126,17 @@
   (define shared-clauses (if library `("-shared") '()))
   (define link-clauses (if static `("-static" "-l:libchicken.a") `("-lchicken")))
 
-  ; this is extremely dumb but I don't think I can use chicken's link files without writing a parser for egg files
+  ; XXX this is extremely dumb. can I just use the egg/dep imports in load-module?
+  ; what I want is to only link things a given artifact uses. need to think about how to turn imports to artifact names tho
+  ; note chicken's link files are useless for this purpose
   (define egg-infiles (if static (glob (make-pathname "eggs" "*.o")) '()))
+  (define dep-infiles (if static (glob (make-pathname "deps" "*.a")) '()))
 
-  (define args `(,cc ,@infiles ,@egg-infiles "-o" ,outfile ,(<> "-fuse-ld=" ld) ,@(ldflags)
+  (define args `(,cc ,@infiles ,@egg-infiles ,@dep-infiles "-o" ,outfile ,(<> "-fuse-ld=" ld) ,@(ldflags)
                  ,@shared-clauses ,@link-clauses "-lm" "-ldl"))
 
-  (when verbose (printf "~A\n\n" (string-intersperse (cons env args))))
-  (process-run env args))
+  (when verbose (printf "~A\n\n" (string-intersperse (cons binenv args))))
+  (process-run binenv args))
 
 ; ok basicallly compile loops needs to trim a batch of leaves
 ; map csc, map wait, map cc, collect the cc pids and repeat
@@ -178,17 +185,12 @@
   (for-each process-join cc-pids)
   (printf "* cc done\n")
 
-  ; XXX chicken-install never calls ld for staticlibs ... does chicken pull in extensions automatically? does it for exes?
-  ; ld complains about not finding a start symbol with static lib link, so probably unnecessary. need to test more
-  ; XXX UPDATE I am fairly sure the right thing is to link everything except static libs
-  ; thus linking a dynamic exe or lib only involves its local modules, with eggs and deps resolved at runtime
-  ; whereas linking a static exe we need to pull in *all* static object files for *every* dep/egg
-  ; this is extremely annoying... this must also be why csc naively creates shared objects for every single module
-  ; I... hm I think I can just create archive files, why do I need to copy what csc does?
-  (cond ((and static library) (printf "TODO ar rcs artname.a mod1.static.o mod2.static.o\n"))
-        (else (process-join (ld all-module-tags ((^.!! (keyw :name)) artifact)
-                                :library library :static static :verbose verbose))
-              (printf "* ld done\n")))
+  (cond ((and static library)
+         (process-join (ar all-module-tags ((^.!! (keyw :name)) artifact) :verbose verbose))
+         (printf "* ar done\n"))
+        (else
+         (process-join (ld all-module-tags ((^.!! (keyw :name)) artifact) :library library :static static :verbose verbose))
+         (printf "* ld done\n")))
 
   (when (and dynamic library)
         (compile-import-so ((^.!! (keyw :root)) artifact) verbose)

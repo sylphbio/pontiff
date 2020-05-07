@@ -13,7 +13,8 @@
 (import chicken.format)
 
 (define (main)
-  (display "hello pontiff!\n"))
+  (printf "hello pontiff!\n")
+  (exit 0))
 
 (main)
 

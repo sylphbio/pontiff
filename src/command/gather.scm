@@ -39,6 +39,20 @@
 ; this is so messy, wild random guessing. grepping through chicken-core is only moderately helpful tho
 ; just need to test systematically
 
+; XXX OK TOMLORROW NEXT I got static builds working, I fixed a bunch of bugs, so next to finish gather I want to
+; * get rid of linkfiles, useless
+; * compile should make archives for static libraries
+; * gather should symlink all shared objects, archives, and import libs
+; * devise mechanism to get pontiff deps into link... probably write artifact-by-artifact deps file with symbol lists
+; at this point deps should fully work in theory and we can...
+; * impl clean, including depclean
+; * split out ix and tabulae
+; * impl ix generic and fix modules.ix to use it (also record latest exe type)
+; * give a pontiff file to uuid
+; * add nogather/alllibs flags to build and call gather in build
+; and then... I think we're ready to launch?
+; and then I want to impl json conversion in ix for viv and rewrite the sbml parser
+
 ; dumb convenience function
 (define (access-dlist kw sx)
   (map (lambda (d) (if (ix:symbol? d) (ix:unwrap! d) d))
@@ -118,7 +132,6 @@
              (to-load^ (union-by* dep=? (cdr to-load) (difference-by* dep=? new-deps loaded^))))
             (fetch-all-deps to-load^ eggs^ loaded^))))
 
-; XXX TODO I actually do want to write out the deplists, not to skip walking, but for the benefit of static linking
 (define (gather argv)
   (define verbose ((^.!! (keyw :verbose)) argv))
   ; this clones, symlinks, or whatever every dependency, every dependency's dependency, etc
@@ -133,19 +146,21 @@
                                                       ,@(if verbose '() `("2>&1 | sed -n 's/^building.*/\\* &/p'"))))
                                 #f
                                 (state:env)))
+  ; then build all pontiff dependencies and symlinks artifacts up into the shared deps dir
   (printf "compiling dependencies\n")
-  (for-each (lambda (name) (let ((dpath (make-pathname `(,(state:working-path) ,(state:build-dir) "deps")
-                                                       (symbol->string name))))
-                                (change-directory dpath)
-                                ; XXX TODO pass through a nogather flag once I add that
-                                (process-join (process-create "/usr/bin/env"
-                                                              `("pontiff" "build" "--all" ,@(if verbose `("--verbose") '()))
-                                                              (state:env)))
-                                ; XXX TODO I also need to symlink the resulting artifacts back to the parent
-                                ; XXX also also for this to actually work without adding to repo path I need a static pontiff
-                                (change-directory (state:working-path))))
-            (cdr eggs/deps))
-  ; XXX TODO write out a deps file for linking
+  (for-each (lambda (name)
+    (let ((dpath (make-pathname `(,(state:working-path) ,(state:build-dir) "deps") (symbol->string name))))
+         (change-directory dpath)
+         ; XXX TODO --no-gather, --all-libs
+         (process-join (process-create "/usr/bin/env"
+                                       `("pontiff2" "build" "--all" ,@(if verbose `("--verbose") '()))
+                                       (state:env)))
+         (for-each (lambda (src) (let ((dst (normalize-pathname (make-pathname `(,dpath "..") (pathname-strip-directory src)))))
+                                      (when (not (file-exists? dst)) (create-symbolic-link src dst))))
+                   (glob (make-pathname `(,dpath ,(state:build-dir)) "*.so")
+                         (make-pathname `(,dpath ,(state:build-dir)) "*.a")))
+         (change-directory (state:working-path))))
+    (cdr eggs/deps))
   (printf "gather complete\n"))
 
 )
