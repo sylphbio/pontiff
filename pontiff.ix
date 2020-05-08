@@ -9,11 +9,13 @@
          :tags []
          :source-dir "src"
          :test-dir "test"
-         :csc-flags ["-keyword-style" "prefix" "-specialize" "-local" "-lfa2" "-inline" "-inline-global" "-optimize-leaf-routines"]
+         :csc-flags ["-keyword-style" "prefix" "-specialize" "-local" "-lfa2"
+                     "-inline" "-inline-global" "-optimize-leaf-routines"]
          :cc clang
          :ld lld
          :artifacts [(pontiff:executable :name pontiff :root bin.pontiff)]
-         :tests [(pontiff:executable :name unit :root test.unit) (pontiff:executable :name integration :root test.integration)]
+         :tests [(pontiff:executable :name unit :root test.unit)
+                 (pontiff:executable :name integration :root test.integration)]
          :dependencies [(pontiff:directory :name uuid :path "/home/alice/work/alice/chicken-uuid")]
          :resolver alice
          :egg-dependencies [srfi-1 getopt-long simple-sha1 test]

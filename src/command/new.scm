@@ -92,7 +92,8 @@
   (system* (sprintf "git init && git add ~S ~S pontiff.ix .gitignore && git commit -m 'pontiff new'" srcdir tstdir))
 
   (change-directory (state:working-path))
-  (rename-file tmpdir project-string)
+  ; XXX this is really annoying but move-file doesn't work on directories and rename-file doesn't work across devices
+  (system* (sprintf "mv ~S ~S" tmpdir project-string))
   (printf "created new project ~S\n" project-string))
 
 )

@@ -9,7 +9,6 @@
 
 (import tabulae)
 (import tabulae.monad)
-(import tabulae.parsec)
 (import ix)
 
 (import (prefix state state:))

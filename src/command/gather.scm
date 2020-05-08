@@ -7,6 +7,8 @@
 (import chicken.format)
 (import chicken.file)
 (import chicken.file.posix)
+(import chicken.io)
+(import chicken.process)
 (import chicken.process-context)
 (import chicken.pathname)
 
@@ -126,13 +128,28 @@
 ; unfortunately because chicken needs to see import libraries we have to do this all in serial
 (define (gather argv)
   (define verbose ((^.!! (keyw :verbose)) argv))
+
   ; fetch pontiff dependencies recursively, returning a pair of a list of egg names and dep names
   (printf "fetching dependencies\n")
   (define eggs/deps (fetch-all-deps (access-dlist :dependencies (state:pfile))
                                     (access-dlist :egg-dependencies (state:pfile))
                                     '()))
+
   ; next we install all eggs locally to this project
   (printf "compiling eggs\n")
+
+  ; should be /usr/lib/chicken/BINVER on normal systems
+  ; extremely annoyingly chicken dumps its eggs and its system import libs all in the same directory
+  ; we need to symlink system libs to our eggs dir, otherwise chicken-install won't install egg dependencies
+  ; this all goes away when pontiff manages the compiler and stdlib itself
+  (define chicken-repo (call-with-input-pipe "/usr/bin/env chicken-install -repository" read-line))
+  (for-each (lambda (src) (let ((dst (make-pathname `(,(state:working-path) ,(state:build-dir) "eggs")
+                                                    (pathname-strip-directory src))))
+                               (when (not (file-exists? dst)) (create-symbolic-link src dst))))
+            (glob (make-pathname chicken-repo "chicken.*.import.so")
+                  (make-pathname chicken-repo "srfi-4.import.so")
+                  (make-pathname chicken-repo "types.db")))
+
   (process-join (process-create (string-intersperse `("/usr/bin/env" "chicken-install" ,@(map symbol->string (car eggs/deps))
                                                       ,@(if verbose '() `("2>&1 | sed -n 's/^building.*/\\* &/p'"))))
                                 #f
@@ -151,6 +168,7 @@
                          (make-pathname `(,dpath ,(state:build-dir)) "*.a")))
          (change-directory (state:working-path))))
     (cdr eggs/deps))
+
   (printf "gather complete\n"))
 
 )

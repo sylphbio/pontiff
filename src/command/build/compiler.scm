@@ -20,14 +20,22 @@
 (define binenv "/usr/bin/env")
 
 ; XXX ask about -no-module-registration text on wiki says it can be used if making your own import libraries?
-; these are all functions because pwd needs to happen after state:init
-; XXX include-path is specifically for include, there doesn't appear to be a way to define alternative extension repos
-(define (pwd) (make-pathname (state:working-path) (state:build-dir)))
-(define (cscflags) `("-setup-mode" "-include-path" ,(pwd)))
+; this and all the flags are functions because ipath needs to happen after state:init
+(define (ipath #!optional subdir)
+  (if subdir
+      (make-pathname `(,(state:working-path) ,(state:build-dir)) subdir)
+      (make-pathname (state:working-path) (state:build-dir))))
+
+(define (cscflags) `("-setup-mode" "-include-path" ,(ipath) "-include-path" ,(ipath "deps") "-include-path" ,(ipath "eggs")))
+
 (define (cflags) `("-c" "-fno-strict-aliasing" "-fwrapv" "-DHAVE_CHICKEN_CONFIG_H" "-DC_ENABLE_PTABLES"
-                 "-O2" "-fomit-frame-pointer" "-fPIC" "-DPIC" ,(<> "-I" (pwd)) "-I/usr/include/chicken"))
-(define (ldflags) `(,(<> "-L" (pwd))  "-L/usr/lib" "-L/usr/local/lib"
-                  ,(<> "-Wl,-R" (pwd)) "-Wl,-R/usr/lib" "-Wl,-R/usr/local/lib"))
+                   "-O2" "-fomit-frame-pointer" "-fPIC" "-DPIC"
+                   ,(<> "-I" (ipath)) ,(<> "-I" (ipath "deps")) ,(<> "-I" (ipath "eggs")) "-I/usr/include/chicken"))
+
+(define (ldflags) `(,(<> "-L" (ipath)) ,(<> "-L" (ipath "deps")) ,(<> "-L" (ipath "eggs"))
+                    "-L/usr/lib" "-L/usr/local/lib"
+                    ,(<> "-Wl,-R" (ipath)) ,(<> "-Wl,-R" (ipath "deps")) ,(<> "-Wl,-R" (ipath "eggs"))
+                    "-Wl,-R/usr/lib" "-Wl,-R/usr/local/lib"))
 
 (define module->unit symbol->string)
 
@@ -86,7 +94,7 @@
                  ,@unit-clauses ,@uses-clauses ,@toplevel-clauses ,@static-clauses))
 
   (when verbose (printf "~A\n\n" (string-intersperse (cons binenv args))))
-  (process-run binenv args))
+  (process-run binenv args (state:env)))
 
 ; compile a single c to o
 (define (cc tag #!key is-root library static verbose)
@@ -193,8 +201,8 @@
          (printf "* ld done\n")))
 
   (when (and dynamic library)
-        (compile-import-so ((^.!! (keyw :root)) artifact) verbose)
-        (printf "* import library done\n"))
+        (for-each (lambda (tag) (compile-import-so tag verbose)) all-module-tags)
+        (printf "* import libraries done\n"))
 
   (change-directory (state:working-path)))
 

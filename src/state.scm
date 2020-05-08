@@ -39,18 +39,7 @@
   ; straightforward. does nothing if directories exist
   (create-directory bdirname)
   (create-directory (make-pathname bdirname "deps"))
-  (create-directory (make-pathname bdirname "eggs"))
-
-  ; should be /usr/lib/chicken/BINVER on normal systems
-  ; extremely annoyingly chicken dumps its eggs and its system import libs all in the same directory
-  ; we need to symlink system libs to our eggs dir, otherwise chicken-install won't install egg dependencies
-  ; this all goes away when pontiff manages the compiler and stdlib itself
-  (define chicken-repo (call-with-input-pipe "/usr/bin/env chicken-install -repository" read-line))
-  (for-each (lambda (src) (let ((dst (make-pathname `(,pwd ,bdirname "eggs") (pathname-strip-directory src))))
-                               (when (not (file-exists? dst)) (create-symbolic-link src dst))))
-            (glob (make-pathname chicken-repo "chicken.*.import.so")
-                  (make-pathname chicken-repo "srfi-4.import.so")
-                  (make-pathname chicken-repo "types.db"))))
+  (create-directory (make-pathname bdirname "eggs")))
 
 (define (init)
   ; set up ix prototypes
