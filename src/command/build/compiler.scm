@@ -25,8 +25,6 @@
   (let ((lpath (lambda (subdir) (make-pathname (state:link-path) subdir))))
        (map ((curry* <>) prefix) `(,(state:link-path) ,(lpath "deps") ,(lpath "eggs") ,(lpath "sys")))))
 
-(define (cscflags) `("-setup-mode"))
-
 (define (cflags) `("-c" "-fno-strict-aliasing" "-fwrapv" "-DHAVE_CHICKEN_CONFIG_H" "-DC_ENABLE_PTABLES"
                    "-O2" "-fomit-frame-pointer" "-fPIC" "-DPIC" "-I/usr/include/chicken"))
 
@@ -58,7 +56,7 @@
   (define outfile (module->cfile tag static))
   (define inlinefile (module->inline tag))
   (define typefile (module->types tag))
-  (define user-flags (map ix:unwrap! ((^.!! (keyw :csc-flags)) (state:pfile))))
+  (define csc-flags (map ix:unwrap! ((^.!! (keyw :csc-flags)) (state:pfile))))
 
   ; anything except an exe root is a unit
   (define unit-clauses (if (and is-module (not (and executable is-root)))
@@ -86,7 +84,7 @@
                              `("-static" "-module-registration")
                              '()))
 
-  (define args `("chicken" ,infile "-output-file" ,outfile ,@(cscflags) ,@user-flags
+  (define args `("chicken" ,infile "-output-file" ,outfile ,@csc-flags
                  ,@unit-clauses ,@uses-clauses ,@toplevel-clauses ,@static-clauses))
 
   (when verbose (printf "~A\n\n" (string-intersperse (cons binenv args))))
