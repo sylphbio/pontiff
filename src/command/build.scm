@@ -174,6 +174,8 @@
   ; what I actually want is a freeform ix object wth every module/static/root triple a key, sg hash a value
   ; we can't just replace unfiltered lists, otherwise we lose data on other artifacts' modules
   ; XXX FIXME I also need to track whether we have last built a static or dynamic executable, or else always at least link
+  ; XXX FIXME also track if the last build was a subinvocation, linker paths change
+  ; this last one means my logic gets even more complicated because I have a case where I need a link but no build
   (printf "* determining build order... ")
   (define dyn-modules (cond ((and build-dynamic force-build) sorted-modules)
                             (build-dynamic (skip-subgraphs sorted-modules ((^.!! (keyw :dynamic)) (state:mfile))))

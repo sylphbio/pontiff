@@ -140,10 +140,10 @@
 
   ; should be /usr/lib/chicken/BINVER on normal systems
   ; extremely annoyingly chicken dumps its eggs and its system import libs all in the same directory
-  ; we need to symlink system libs to our eggs dir, otherwise chicken-install won't install egg dependencies
+  ; we need to symlink system libs, otherwise chicken-install won't install egg dependencies
   ; this all goes away when pontiff manages the compiler and stdlib itself
   (define chicken-repo (call-with-input-pipe "/usr/bin/env chicken-install -repository" read-line))
-  (for-each (lambda (src) (let ((dst (make-pathname `(,(state:working-path) ,(state:build-dir) "eggs")
+  (for-each (lambda (src) (let ((dst (make-pathname `(,(state:link-path) "sys")
                                                     (pathname-strip-directory src))))
                                (when (not (file-exists? dst)) (create-symbolic-link src dst))))
             (glob (make-pathname chicken-repo "chicken.*.import.so")
@@ -154,11 +154,14 @@
                                                       ,@(if verbose '() `("2>&1 | sed -n 's/^building.*/\\* &/p'"))))
                                 #f
                                 (state:env)))
+
   ; then build all pontiff dependencies and symlinks artifacts up into the shared deps dir
   (printf "compiling dependencies\n")
   (for-each (lambda (name)
     (let ((dpath (make-pathname `(,(state:working-path) ,(state:build-dir) "deps") (symbol->string name))))
          (change-directory dpath)
+         ; XXX TODO FIXME get rid of this call when I hav ebetter moddules.ix
+         (process-join (process-create "/usr/bin/env" `("pontiff" "clean" "--depclean")))
          (process-join (process-create "/usr/bin/env"
                                        `("pontiff" "build" "--all-libs" "--no-gather" ,@(if verbose `("--verbose") '()))
                                        (state:env)))

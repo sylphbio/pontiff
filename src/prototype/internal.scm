@@ -17,6 +17,7 @@
 
 (define p-state `(pontiff:state :working-path string
                                 :build-dir string
+                                :link-path string
                                 :in-project boolean
                                 :pfile (optional (sexp pontiff))
                                 :mfile (sexp pontiff:module:file)

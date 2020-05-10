@@ -20,22 +20,18 @@
 (define binenv "/usr/bin/env")
 
 ; XXX ask about -no-module-registration text on wiki says it can be used if making your own import libraries?
-; this and all the flags are functions because ipath needs to happen after state:init
-(define (ipath #!optional subdir)
-  (if subdir
-      (make-pathname `(,(state:working-path) ,(state:build-dir)) subdir)
-      (make-pathname (state:working-path) (state:build-dir))))
+; this and all the flags are functions because lpath needs to happen after state:init
+(define (lpaths prefix)
+  (let ((lpath (lambda (subdir) (make-pathname (state:link-path) subdir))))
+       (map ((curry* <>) prefix) `(,(state:link-path) ,(lpath "deps") ,(lpath "eggs") ,(lpath "sys")))))
 
-(define (cscflags) `("-setup-mode" "-include-path" ,(ipath) "-include-path" ,(ipath "deps") "-include-path" ,(ipath "eggs")))
+(define (cscflags) `("-setup-mode"))
 
 (define (cflags) `("-c" "-fno-strict-aliasing" "-fwrapv" "-DHAVE_CHICKEN_CONFIG_H" "-DC_ENABLE_PTABLES"
-                   "-O2" "-fomit-frame-pointer" "-fPIC" "-DPIC"
-                   ,(<> "-I" (ipath)) ,(<> "-I" (ipath "deps")) ,(<> "-I" (ipath "eggs")) "-I/usr/include/chicken"))
+                   "-O2" "-fomit-frame-pointer" "-fPIC" "-DPIC" "-I/usr/include/chicken"))
 
-(define (ldflags) `(,(<> "-L" (ipath)) ,(<> "-L" (ipath "deps")) ,(<> "-L" (ipath "eggs"))
-                    "-L/usr/lib" "-L/usr/local/lib"
-                    ,(<> "-Wl,-R" (ipath)) ,(<> "-Wl,-R" (ipath "deps")) ,(<> "-Wl,-R" (ipath "eggs"))
-                    "-Wl,-R/usr/lib" "-Wl,-R/usr/local/lib"))
+(define (ldflags) `(,@(lpaths "-L") "-L/usr/lib" "-L/usr/local/lib"
+                    ,@(lpaths "-Wl,-R") "-Wl,-R/usr/lib" "-Wl,-R/usr/local/lib"))
 
 (define module->unit symbol->string)
 
@@ -134,7 +130,7 @@
   (define shared-clauses (if library `("-shared") '()))
   (define link-clauses (if static `("-static" "-l:libchicken.a") `("-lchicken")))
 
-  ; XXX this is extremely dumb. can I just use the egg/dep imports in load-module?
+  ; XXX this is extremely dumb. can I just use the egg/dep imports from load-module?
   ; what I want is to only link things a given artifact uses. need to think about how to turn imports to artifact names tho
   ; note chicken's link files are useless for this purpose
   (define egg-infiles (if static (glob (make-pathname "eggs" "*.o")) '()))
