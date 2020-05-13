@@ -19,17 +19,22 @@
 
 (define binenv "/usr/bin/env")
 
-; XXX ask about -no-module-registration text on wiki says it can be used if making your own import libraries?
-; this and all the flags are functions because lpath needs to happen after state:init
-(define (lpaths prefix)
-  (let ((lpath (lambda (subdir) (make-pathname (state:link-path) subdir))))
-       (map ((curry* <>) prefix) `(,(state:link-path) ,(lpath "deps") ,(lpath "eggs") ,(lpath "sys")))))
+(define (lpath #!optional subdir)
+  (if subdir
+      (make-pathname (state:link-path) subdir)
+      (state:link-path)))
+
+(define (ld-lpaths prefix)
+  (map ((curry* <>) prefix) `(,(lpath) ,(lpath "deps") ,(lpath "eggs") ,(lpath "sys"))))
+
+(define (cscflags) `("-include-path" ,(lpath) "-include-path" ,(lpath "deps")
+                     "-include-path" ,(lpath "eggs") "-include-path" ,(lpath "sys")))
 
 (define (cflags) `("-c" "-fno-strict-aliasing" "-fwrapv" "-DHAVE_CHICKEN_CONFIG_H" "-DC_ENABLE_PTABLES"
                    "-O2" "-fomit-frame-pointer" "-fPIC" "-DPIC" "-I/usr/include/chicken"))
 
-(define (ldflags) `(,@(lpaths "-L") "-L/usr/lib" "-L/usr/local/lib"
-                    ,@(lpaths "-Wl,-R") "-Wl,-R/usr/lib" "-Wl,-R/usr/local/lib"))
+(define (ldflags) `(,@(ld-lpaths "-L") "-L/usr/lib" "-L/usr/local/lib"
+                    ,@(ld-lpaths "-Wl,-R") "-Wl,-R/usr/lib" "-Wl,-R/usr/local/lib"))
 
 (define module->unit symbol->string)
 
@@ -56,7 +61,7 @@
   (define outfile (module->cfile tag static))
   (define inlinefile (module->inline tag))
   (define typefile (module->types tag))
-  (define csc-flags (map ix:unwrap! ((^.!! (keyw :csc-flags)) (state:pfile))))
+  (define user-flags (map ix:unwrap! ((^.!! (keyw :csc-flags)) (state:pfile))))
 
   ; anything except an exe root is a unit
   (define unit-clauses (if (and is-module (not (and executable is-root)))
@@ -84,7 +89,7 @@
                              `("-static" "-module-registration")
                              '()))
 
-  (define args `("chicken" ,infile "-output-file" ,outfile ,@csc-flags
+  (define args `("chicken" ,infile "-output-file" ,outfile ,@user-flags ,@(cscflags)
                  ,@unit-clauses ,@uses-clauses ,@toplevel-clauses ,@static-clauses))
 
   (when verbose (printf "~A\n\n" (string-intersperse (cons binenv args))))
