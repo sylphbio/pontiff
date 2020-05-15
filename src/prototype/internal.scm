@@ -12,15 +12,19 @@
                                   :skip-compile boolean
                                   :local-imports (list symbol)))
 
-(define p-mfile `(pontiff:module:file :dynamic (list (sexp pontiff:module))
-                                      :static (list (sexp pontiff:module))))
+(define mfile-block `(pontiff:module:block :name symbol
+                                           :subgraph-hash string
+                                           :is-root boolean
+                                           :static boolean
+                                           :dependent boolean))
 
 (define p-state `(pontiff:state :working-path string
                                 :build-dir string
                                 :link-path string
                                 :in-project boolean
+                                :subinvocation boolean
                                 :pfile (optional (sexp pontiff))
-                                :mfile (sexp pontiff:module:file)
+                                :mfile (sexp ix:*)
                                 :env (list (product string string))))
 
 )

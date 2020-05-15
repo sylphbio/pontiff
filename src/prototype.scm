@@ -20,9 +20,9 @@
     ((pontiff:executable) file:exe)
     ((pontiff:library)    file:lib)
     ; internal objects
-    ((pontiff:module)        p-module)
-    ((pontiff:module:file)   p-mfile)
-    ((pontiff:state)         p-state)
+    ((pontiff:module)       p-module)
+    ((pontiff:state)        p-state)
+    ((pontiff:module:block) mfile-block)
     ; command-line arguments
     ((pontiff:new:argv)    argv:new)
     ((pontiff:gather:argv) argv:gather)

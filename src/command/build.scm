@@ -9,6 +9,7 @@
 (import chicken.pathname)
 (import chicken.condition)
 (import chicken.sort)
+(import chicken.keyword)
 
 (import tabulae)
 (import tabulae.monad)
@@ -41,6 +42,30 @@
                   (cons ((^.!! (keyw :source-dir)) (state:pfile)) (drop-right* 1 mm-str)))))
         (make-pathname dir (car (take-right* 1 mm-str)) "scm")))
 
+; takes a full pontiff:module object and returns a pontiff:module:block object
+(define (module->mblock module static)
+  (ix:build! 'pontiff:module:block :name ((^.!! (keyw :name)) module)
+                                   :subgraph-hash ((^.!! (keyw :subgraph-hash)) module)
+                                   :is-root ((^.!! (keyw :is-root)) module)
+                                   :static static
+                                   :dependent (state:subinvocation)))
+
+; takes a pontiff:module and returns the key that would go on the mfile
+(define (module->mkey module static)
+  (string->keyword (<> (symbol->string ((^.!! (keyw :name)) module))
+                       (if static "-static" "-dynamic"))))
+
+; XXX FIXME because of a very annoying oversight in ix lens, I can't easily support key addition
+; or, at least I don't wnat to bother rn
+(define (merge-mfile modules static)
+  (foldl (lambda (mfile k/v) (let ((key (first* k/v))
+                                   (block (second* k/v)))
+                                  (if (just? ((^. (keyw key)) mfile))
+                                      ((.~! block (keyw key)) mfile)
+                                      (<> mfile `(,key ,block)))))
+         (state:mfile)
+         (map (lambda (module) `(,(ix:wrap 'keyword (module->mkey module static)) ,(module->mblock module static))) modules)))
+
 ; check an adjlist for cycles while build up subgraph hashes via iterative cutleaves calls
 ; returned list is ordered leaves-first
 (define (sort-dag adjl objs acc)
@@ -60,18 +85,21 @@
               ((null? leaves) (die "could not remove further leaves, remaining graph is cyclic: ~S" (map car adjl)))
               (else (sort-dag branches objs (<> acc (map mk-leaf-obj leaves)))))))
 
-; after a build we write the module list to disk
-; this loads it if it exists and marks as skippable subgraphs unchanged since the previous build
-; the map should be read "mark as skippable if any in the mlist matches on all of name, is-root, and subgraph-hash
-(define (skip-subgraphs objs mlist)
-  (let ((match-kw (lambda (kw o1 o2) (equal? ((^. (keyw kw)) o1) ((^. (keyw kw)) o2)))))
-       (map (lambda (mutandum) ((.~! (any* (lambda (model) (and (match-kw :name mutandum model)
-                                                                (match-kw :is-root mutandum model)
-                                                                (match-kw :subgraph-hash mutandum model)))
-                                           mlist)
-                                     (keyw :skip-compile))
-                                mutandum))
-            objs)))
+; set skippable on each module that has a corresponding mfile block (indicating prior build) with:
+; * same subgraph hashes
+; * same root/nonroot position in the graph
+; * same dependent/independent last build status (for when symlinking on-disk dependencies in
+; XXX we need to track whether each exe artifact has last been built static or dynamic also
+; and relink altho we don't necessarily need to rebuild
+; XXX also the dependent bool could be one thing on the mfile object if we add another schema on top
+; but may just be simpler to do it like this anyway
+(define (skip-subgraphs modules static)
+  (map (lambda (module) (let ((mblock ((^. (keyw (module->mkey module static))) (state:mfile))))
+                             ((.~! (and (just? mblock)
+                                        (equal? (module->mblock module static) (from-just mblock)))
+                                   (keyw :skip-compile))
+                              module)))
+       modules))
 
 (define (load-module m)
   (letrec ((path (module-path m))
@@ -178,11 +206,11 @@
   ; this last one means my logic gets even more complicated because I have a case where I need a link but no build
   (printf "* determining build order... ")
   (define dyn-modules (cond ((and build-dynamic force-build) sorted-modules)
-                            (build-dynamic (skip-subgraphs sorted-modules ((^.!! (keyw :dynamic)) (state:mfile))))
+                            (build-dynamic (skip-subgraphs sorted-modules #f))
                             (else '())))
 
   (define stat-modules (cond ((and build-static force-build) sorted-modules)
-                             (build-static (skip-subgraphs sorted-modules ((^.!! (keyw :static)) (state:mfile))))
+                             (build-static (skip-subgraphs sorted-modules #t))
                              (else '())))
 
   (define do-dyn (not (null? (filter-skippable dyn-modules))))
@@ -198,14 +226,14 @@
                             (length dyn-modules))
                     (compile dyn-modules artifact #f verbose)
                     (printf "compilation finished\n")
-                    (state:save-mfile ((.~! (ix:wrap 'list dyn-modules) (keyw :dynamic)) (state:mfile))))
+                    (state:save-mfile (merge-mfile dyn-modules #f)))
               (when do-stat
                     (printf "compiling ~S/~S modules (static)\n"
                             (length (filter-skippable stat-modules))
                             (length stat-modules))
                     (compile stat-modules artifact #t verbose)
                     (printf "compilation finished\n")
-                    (state:save-mfile ((.~! (ix:wrap 'list stat-modules) (keyw :static)) (state:mfile))))
+                    (state:save-mfile (merge-mfile stat-modules #t)))
               (printf "~S build finished\n" aname))))
 
 (define (build argv)

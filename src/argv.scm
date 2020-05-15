@@ -145,12 +145,16 @@
     ; no extraneous input before double dash
     (to-either (= (length (alist-ref '@ args)) 0)
                `(1 . "pontiff error: extraneous input"))
-    ; get pfile artifacts
-    (declare project-artifacts ((^.!! (keyw :artifacts)) (state:pfile)))
+    ; get pfile executables
+    (declare project-artifacts (filter* executable? ((^.!! (keyw :artifacts)) (state:pfile))))
+    ; artifact > implicit (sole) > implicit (project name)
+    (declare name-match? (lambda (e) (eq? ((^.!! (keyw :name)) e) ((^.!! (keyw :name)) (state:pfile)))))
     (artifact <- (cond ((alist-ref 'artifact args)
                         (locate-artifact project-artifacts (string->symbol (alist-ref 'artifact args))))
-                       ((= (length (filter* executable? project-artifacts)) 1)
-                        (return (find* executable? project-artifacts)))
+                       ((= (length project-artifacts) 1)
+                        (return (car project-artifacts)))
+                       ((any* name-match? project-artifacts)
+                        (find* name-match? project-artifacts))
                        (else (fail `(1 . "pontiff error: could not determine suitable artifact")))))
     (maybe->either (ix:build 'pontiff:run:argv :artifact artifact :exec-args (drop* (+ argv-div 1) argv))
                    `(1 . "pontiff error: failed to build argv ix"))))

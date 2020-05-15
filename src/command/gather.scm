@@ -19,28 +19,6 @@
 (import (prefix state state:))
 (import util)
 
-; XXX OK TOMLORROW NEXT I got static builds working, I fixed a bunch of bugs, so next to finish gather I want to
-; * get rid of linkfiles, useless
-; * compile should make archives for static libraries
-; * gather should symlink all shared objects, archives, and import libs
-; * devise mechanism to get pontiff deps into link... probably write artifact-by-artifact deps file with symbol lists
-; at this point deps should fully work in theory and we can...
-; * impl clean, including depclean
-; * split out ix and tabulae
-; * impl ix generic and fix modules.ix to use it (also record latest exe type, also rename back to modules.ix)
-; * give a pontiff file to uuid
-; * add nogather/alllibs flags to build and call gather in build
-; * make vc handling its own module with a single generic interface
-; * make a separate module from state to contain hardcoded values like pfile/mfile/dfile names etc
-; and then... I think we're ready to launch?
-; and then I want to impl json conversion in ix for viv and rewrite the sbml parser
-
-; XXX TODO I keep getting confused on why and why not I actually want a deps.ix file
-; * record which deps we have actually built. unless forced to refresh we don't want to even attempt rebuilds
-;   ideally after the first gather it's totally silent/basically a noop every time you call build unless you change the deplist
-;   in which case it would only get the new things that are needed
-; * deps.ix would not help with linking, I need to determine what to link on an artifact-by-artifact basis
-
 ; dumb convenience function
 (define (access-dlist kw sx)
   (map (lambda (d) (if (ix:symbol? d) (ix:unwrap! d) d))
@@ -160,11 +138,10 @@
   (for-each (lambda (name)
     (let ((dpath (make-pathname `(,(state:working-path) ,(state:build-dir) "deps") (symbol->string name))))
          (change-directory dpath)
-         ; XXX TODO FIXME get rid of this call when I hav ebetter moddules.ix
-         (process-join (process-create "/usr/bin/env" `("pontiff" "clean" "--depclean")))
-         (process-join (process-create "/usr/bin/env"
-                                       `("pontiff" "build" "--all-libs" "--no-gather" ,@(if verbose `("--verbose") '()))
-                                       (state:env)))
+         ; note for subinvoke we always use whatever binary this is
+         (process-join (process-create (executable-pathname)
+                                       `("build" "--all-libs" "--no-gather" ,@(if verbose `("--verbose") '()))
+                                       (cons `("PONTIFF_SUBINVOCATION" . "1") (state:env))))
          (for-each (lambda (src) (let ((dst (normalize-pathname (make-pathname `(,dpath "..") (pathname-strip-directory src)))))
                                       (when (not (file-exists? dst)) (create-symbolic-link src dst))))
                    (glob (make-pathname `(,dpath ,(state:build-dir)) "*.so")
