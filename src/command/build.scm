@@ -51,20 +51,28 @@
                                    :dependent (state:subinvocation)))
 
 ; takes a pontiff:module and returns the key that would go on the mfile
-(define (module->mkey module static)
+(define (module->mkey module suffix)
   (string->keyword (<> (symbol->string ((^.!! (keyw :name)) module))
-                       (if static "-static" "-dynamic"))))
+                       "-"
+                       suffix)))
 
 ; XXX FIXME because of a very annoying oversight in ix lens, I can't easily support key addition
 ; or, at least I don't wnat to bother rn
-(define (merge-mfile modules static)
-  (foldl (lambda (mfile k/v) (let ((key (first* k/v))
-                                   (block (second* k/v)))
-                                  (if (just? ((^. (keyw key)) mfile))
-                                      ((.~! block (keyw key)) mfile)
-                                      (<> mfile `(,key ,block)))))
-         (state:mfile)
-         (map (lambda (module) `(,(ix:wrap 'keyword (module->mkey module static)) ,(module->mblock module static))) modules)))
+(define (merge-mfile modules artifact static)
+  (let ((k/vs (map (lambda (module) `(,(ix:wrap 'keyword (module->mkey module (if static "static" "dynamic")))
+                                      ,(module->mblock module static)))
+                   modules))
+        (exe-k/v (if (executable? artifact)
+                     `((,(ix:wrap 'keyword (module->mkey artifact "static-last-link"))
+                        ,(ix:wrap 'boolean static)))
+                     '())))
+       (foldl (lambda (mfile k/v) (let ((key (first* k/v))
+                                        (block (second* k/v)))
+                                       (if (just? ((^. (keyw key)) mfile))
+                                           ((.~! block (keyw key)) mfile)
+                                           (<> mfile `(,key ,block)))))
+              (state:mfile)
+              (<> k/vs exe-k/v))))
 
 ; check an adjlist for cycles while build up subgraph hashes via iterative cutleaves calls
 ; returned list is ordered leaves-first
@@ -94,7 +102,7 @@
 ; XXX also the dependent bool could be one thing on the mfile object if we add another schema on top
 ; but may just be simpler to do it like this anyway
 (define (skip-subgraphs modules static)
-  (map (lambda (module) (let ((mblock ((^. (keyw (module->mkey module static))) (state:mfile))))
+  (map (lambda (module) (let ((mblock ((^. (keyw (module->mkey module (if static "static" "dynamic")))) (state:mfile))))
                              ((.~! (and (just? mblock)
                                         (equal? (module->mblock module static) (from-just mblock)))
                                    (keyw :skip-compile))
@@ -196,14 +204,12 @@
   (define sorted-modules (sort-dag (map module->adjlist base-modules) base-modules '()))
   (printf "done\n")
 
-  ; filter out modules whose local subgraphs have not changed
-  ; remember, we build two artifacts for libraries but one for executables
-  ; XXX TODO FIXME this is fundamentally flawed for multi-artifact projects!!
-  ; what I actually want is a freeform ix object wth every module/static/root triple a key, sg hash a value
-  ; we can't just replace unfiltered lists, otherwise we lose data on other artifacts' modules
-  ; XXX FIXME I also need to track whether we have last built a static or dynamic executable, or else always at least link
-  ; XXX FIXME also track if the last build was a subinvocation, linker paths change
-  ; this last one means my logic gets even more complicated because I have a case where I need a link but no build
+  ; the logic is somewhat torturous but the intent here is
+  ; * filter out modules whose subgraphs are unchanged, as long as their root position is the same
+  ; * ignore this and rebuild everything when --force flag
+  ; * also ignore and rebuild everything when dependent/independent status differs from last build
+  ; * if we've filtered to modules, there is nothing to do, except if we need to link a final exe differently
+  ; (remember, we build two artifacts for libraries but one for executables)
   (printf "* determining build order... ")
   (define dyn-modules (cond ((and build-dynamic force-build) sorted-modules)
                             (build-dynamic (skip-subgraphs sorted-modules #f))
@@ -213,8 +219,19 @@
                              (build-static (skip-subgraphs sorted-modules #t))
                              (else '())))
 
-  (define do-dyn (not (null? (filter-skippable dyn-modules))))
-  (define do-stat (not (null? (filter-skippable stat-modules))))
+  (define relink (let ((sll ((^. (keyw (module->mkey artifact "static-last-link"))) (state:mfile))))
+                      (or (nothing? sll)
+                          (not (eq? (ix:unwrap! (from-just sll)) static)))))
+
+  (define do-dyn (or (not (null? (filter-skippable dyn-modules)))
+                     (and (executable? artifact)
+                          (not static)
+                          relink)))
+
+  (define do-stat (or (not (null? (filter-skippable stat-modules)))
+                      (and (executable? artifact)
+                           static
+                           relink)))
   (printf "done\n")
 
   ; note we use the filtered list in compile and write the unfiltered list to modules.ix
@@ -226,14 +243,14 @@
                             (length dyn-modules))
                     (compile dyn-modules artifact #f verbose)
                     (printf "compilation finished\n")
-                    (state:save-mfile (merge-mfile dyn-modules #f)))
+                    (state:save-mfile (merge-mfile dyn-modules artifact #f)))
               (when do-stat
                     (printf "compiling ~S/~S modules (static)\n"
                             (length (filter-skippable stat-modules))
                             (length stat-modules))
                     (compile stat-modules artifact #t verbose)
                     (printf "compilation finished\n")
-                    (state:save-mfile (merge-mfile stat-modules #t)))
+                    (state:save-mfile (merge-mfile stat-modules artifact #t)))
               (printf "~S build finished\n" aname))))
 
 (define (build argv)
