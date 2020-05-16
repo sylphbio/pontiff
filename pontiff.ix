@@ -16,8 +16,8 @@
          :artifacts [(pontiff:executable :name pontiff :root bin.pontiff)]
          :tests [(pontiff:executable :name unit :root test.unit)
                  (pontiff:executable :name integration :root test.integration)]
-         :dependencies [(pontiff:directory :name tabulae :path "/home/alice/work/garden/tabulae")
-                        (pontiff:directory :name ix :path "/home/alice/work/garden/ix")]
+         :dependencies [(pontiff:repository :name tabulae :vcs git :url "https://github.com/sylphbio/tabulae.git")
+                        (pontiff:repository :name ix :vcs git :url "https://github.com/sylphbio/ix.git")]
          :resolver alice
          :egg-dependencies [srfi-1 getopt-long simple-sha1 test]
          :egg-resolver chicken-install)
