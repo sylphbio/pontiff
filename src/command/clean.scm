@@ -23,6 +23,7 @@
                      (directory)))
   (change-directory (state:working-path)))
 
+; XXX should depclean also subinvoke clean on directory deps? something to consider
 (define (dep-clean)
   (delete-directory (state:build-dir) #t)
   (create-directory (state:build-dir)))

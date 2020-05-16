@@ -101,12 +101,14 @@
 ; and relink altho we don't necessarily need to rebuild
 ; XXX also the dependent bool could be one thing on the mfile object if we add another schema on top
 ; but may just be simpler to do it like this anyway
+; XXX TODO I may want to carve out a root/branch file distinction like I have static/dynamic
+; complicated intertwined projects like tabulae never get to a "nothing to do" equilibrium
 (define (skip-subgraphs modules static)
-  (map (lambda (module) (let ((mblock ((^. (keyw (module->mkey module (if static "static" "dynamic")))) (state:mfile))))
-                             ((.~! (and (just? mblock)
-                                        (equal? (module->mblock module static) (from-just mblock)))
-                                   (keyw :skip-compile))
-                              module)))
+  (map (lambda (module)
+         (let ((mblock ((^. (keyw (module->mkey module (if static "static" "dynamic")))) (state:mfile))))
+              ((.~! (and (just? mblock) (equal? (module->mblock module static) (from-just mblock)))
+                    (keyw :skip-compile))
+               module)))
        modules))
 
 (define (load-module m)
@@ -235,6 +237,8 @@
   (printf "done\n")
 
   ; note we use the filtered list in compile and write the unfiltered list to modules.ix
+  ; XXX here's an interesting problem, how do we detect we need to rebuild static if a dependency changed?
+  ; should I just relink unconditionally?
   (cond (dry-run (printf "~S: dryrun finished\n\n" aname))
         ((and (not do-dyn) (not do-stat)) (printf "~S: nothing to do\n" aname))
         (else (when do-dyn

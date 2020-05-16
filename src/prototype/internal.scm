@@ -25,6 +25,10 @@
                                 :subinvocation boolean
                                 :pfile (optional (sexp pontiff))
                                 :mfile (sexp ix:*)
+                                :dfile (sexp pontiff:state:deplist)
                                 :env (list (product string string))))
+
+(define dfile `(pontiff:state:deplist :eggs (list symbol)
+                                      :deps (list symbol)))
 
 )

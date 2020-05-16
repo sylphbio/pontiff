@@ -89,7 +89,7 @@
 ; note because this dedupes top-down you can actually use the pontiff file to do dependency injection
 (define (fetch-all-deps to-load eggs loaded)
   (if (null? to-load)
-      `(,eggs . ,(reverse loaded))
+      `(,eggs ,(reverse loaded))
       (let* ((pfile (fetch-dep (car to-load)))
              (new-eggs (access-dlist :egg-dependencies pfile))
              (new-deps (access-dlist :dependencies pfile))
@@ -98,42 +98,17 @@
              (to-load^ (union-by* dep=? (cdr to-load) (difference-by* dep=? new-deps loaded^))))
             (fetch-all-deps to-load^ eggs^ loaded^))))
 
-; the basic flow here is we recursively clone/curl/link our project's pontiff deps, their deps, etc
-; nub out two flat lists of eggs and deps. chicken-install all the eggs locally to the project
-; chicken-install handles missing egg dependencies, so we never need to touch egg files
-; it does annoyingly force us to link all eggs to all artifacts however
-; then with eggs in place we can build our pontiff deps and link the artifacts in a central location
-; unfortunately because chicken needs to see import libraries we have to do this all in serial
-(define (gather argv)
-  (define verbose ((^.!! (keyw :verbose)) argv))
-
-  ; fetch pontiff dependencies recursively, returning a pair of a list of egg names and dep names
-  (printf "fetching dependencies\n")
-  (define eggs/deps (fetch-all-deps (access-dlist :dependencies (state:pfile))
-                                    (access-dlist :egg-dependencies (state:pfile))
-                                    '()))
-
-  ; next we install all eggs locally to this project
-  (printf "compiling eggs\n")
-
-  ; should be /usr/lib/chicken/BINVER on normal systems
-  ; extremely annoyingly chicken dumps its eggs and its system import libs all in the same directory
-  ; we need to symlink system libs, otherwise chicken-install won't install egg dependencies
-  ; this all goes away when pontiff manages the compiler and stdlib itself
-  (define chicken-repo (call-with-input-pipe "/usr/bin/env chicken-install -repository" read-line))
-  (for-each (lambda (src) (let ((dst (make-pathname `(,(state:link-path) "sys")
-                                                    (pathname-strip-directory src))))
-                               (when (not (file-exists? dst)) (create-symbolic-link src dst))))
-            (glob (make-pathname chicken-repo "chicken.*.import.so")
-                  (make-pathname chicken-repo "srfi-4.import.so")
-                  (make-pathname chicken-repo "types.db")))
-
-  (process-join (process-create (string-intersperse `("/usr/bin/env" "chicken-install" ,@(map symbol->string (car eggs/deps))
+; chicken-install any eggs our project needs
+(define (gather-eggs eggs verbose)
+  (printf "setting up eggs\n")
+  ; note this is a shellout just to make filtering stdout reasonable
+  (process-join (process-create (string-intersperse `("/usr/bin/env" "chicken-install" ,@(map symbol->string eggs)
                                                       ,@(if verbose '() `("2>&1 | sed -n 's/^building.*/\\* &/p'"))))
                                 #f
-                                (state:env)))
+                                (state:env))))
 
-  ; then build all pontiff dependencies and symlinks artifacts up into the shared deps dir
+; builds previously fetched pontiff dependencies and symlinks artifacts up into the shared deps dir
+(define (gather-deps deps verbose)
   (printf "compiling dependencies\n")
   (for-each (lambda (name)
     (let ((dpath (make-pathname `(,(state:working-path) ,(state:build-dir) "deps") (symbol->string name))))
@@ -147,8 +122,46 @@
                    (glob (make-pathname `(,dpath ,(state:build-dir)) "*.so")
                          (make-pathname `(,dpath ,(state:build-dir)) "*.a")))
          (change-directory (state:working-path))))
-    (cdr eggs/deps))
+    deps))
 
-  (printf "gather complete\n"))
+; the basic flow here is we recursively clone/curl/link our project's pontiff deps, their deps, etc
+; nub out two flat lists of eggs and deps. chicken-install all the eggs locally to the project
+; chicken-install handles missing egg dependencies, so we never need to touch egg files
+; it does annoyingly force us to link all eggs to all artifacts however
+; then with eggs in place we can build our pontiff deps and link the artifacts in a central location
+; unfortunately because chicken needs to see import libraries we have to do this all in serial
+(define (gather argv)
+  (define verbose ((^.!! (keyw :verbose)) argv))
+  (define force-gather #f) ; XXX TODO impl this
+
+  ; fetch pontiff dependencies recursively, returning a pair of a list of egg names and dep names
+  (printf "checking dependencies\n")
+  (define eggs/deps (fetch-all-deps (access-dlist :dependencies (state:pfile))
+                                    (access-dlist :egg-dependencies (state:pfile))
+                                    '()))
+
+  ; figure out what eggs and deps we actually need to get
+  ; again, required-* is the intersection of all pontiff files' declarations
+  (define required-eggs (first* eggs/deps))
+  (define required-deps (second* eggs/deps))
+  (define existing-eggs (map ix:unwrap! ((^.!! (keyw :eggs)) (state:dfile))))
+  (define existing-deps (map ix:unwrap! ((^.!! (keyw :deps)) (state:dfile))))
+  (define missing-eggs (difference* required-eggs existing-eggs))
+  (define missing-deps (difference* required-deps existing-deps))
+
+  ; and now the rules are, if forced we get all required, else we get all missing if nonempty
+  (define do-eggs (if force-gather required-eggs missing-eggs))
+  (define do-deps (if force-gather required-deps missing-deps))
+
+  ; next install all eggs locally to this project
+  (when (not (null? do-eggs)) (gather-eggs do-eggs verbose))
+  ; sorry my lenses still aren't perfect
+  (state:save-dfile ((.~! (ix:wrap 'list (map (lambda (e) (ix:wrap 'symbol e)) required-eggs)) (keyw :eggs)) (state:dfile)))
+
+  ; then build all pontiff dependencies
+  (when (not (null? do-deps)) (gather-deps do-deps verbose))
+  (state:save-dfile ((.~! (ix:wrap 'list (map (lambda (d) (ix:wrap 'symbol d)) required-deps)) (keyw :deps)) (state:dfile)))
+
+  (when (or (not (null? do-eggs)) (not (null? do-deps))) (printf "gather complete\n")))
 
 )
