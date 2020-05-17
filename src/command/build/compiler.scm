@@ -6,6 +6,7 @@
 (import chicken.string)
 (import chicken.format)
 (import chicken.file)
+(import chicken.foreign)
 (import chicken.process)
 (import chicken.process-context)
 (import chicken.pathname)
@@ -31,10 +32,13 @@
                      "-include-path" ,(lpath "eggs") "-include-path" ,(lpath "sys")))
 
 (define (cflags) `("-c" "-fno-strict-aliasing" "-fwrapv" "-DHAVE_CHICKEN_CONFIG_H" "-DC_ENABLE_PTABLES"
-                   "-O2" "-fomit-frame-pointer" "-fPIC" "-DPIC" "-I/usr/include/chicken"))
+                   "-O2" "-fomit-frame-pointer" "-fPIC" "-DPIC"
+                   ,(string-append "-I" (foreign-value C_TARGET_INCLUDE_HOME c-string))))
 
 (define (ldflags) `(,@(ld-lpaths "-L") "-L/usr/lib" "-L/usr/local/lib"
-                    ,@(ld-lpaths "-Wl,-R") "-Wl,-R/usr/lib" "-Wl,-R/usr/local/lib"))
+                    ,@(ld-lpaths "-Wl,-R") "-Wl,-R/usr/lib" "-Wl,-R/usr/local/lib"
+                    ,(string-append "-L" (foreign-value C_TARGET_LIB_HOME c-string))
+                    ,(string-append "-Wl,-R" (foreign-value C_TARGET_LIB_HOME c-string))))
 
 (define module->unit symbol->string)
 
