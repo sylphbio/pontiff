@@ -12,6 +12,16 @@ exec csi -s "$0" "$@"
 (import chicken.process-context)
 (import chicken.io)
 
+; I refuse to do real cli parsing but this should be sufficient
+(define argv (command-line-arguments))
+(when (and (not (null? argv)) (member (car argv) `("help" "-help" "--help" "-h")))
+      (printf "usage: bootstrap.scm [<args>]\n  -n  don't pass -s to chicken-install\n")
+      (exit 0))
+
+; lol
+(define chargv (flatten (map string->list argv)))
+(define ci-sudo (if (member #\n chargv) '() `("-s")))
+
 ; get by printing in build-artifact: (map (lambda (m) (car (module->adjlist m))) sorted-modules)
 (define tabulae-order `(tabulae.base tabulae.monad tabulae.parsec tabulae))
 (define ix-order `(ix.base ix.parse ix.stringify ix.lens ix.build ix))
@@ -47,7 +57,7 @@ exec csi -s "$0" "$@"
 
 ; install system eggs
 (printf "installing eggs (system)\n")
-(exec "chicken-install" `("-s" ,@egg-deps))
+(exec "chicken-install" `(,@ci-sudo ,@egg-deps))
 
 ; clone ix and tabulae
 (printf "cloning dependencies (temp)\n")
