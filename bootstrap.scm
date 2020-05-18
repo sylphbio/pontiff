@@ -1,4 +1,7 @@
-#!/usr/bin/csi -qbw
+#!/bin/sh
+#|
+exec csi -s "$0" "$@"
+|#
 
 (import chicken.string)
 (import chicken.format)
