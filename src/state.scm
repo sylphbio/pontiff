@@ -49,6 +49,9 @@
   (create-directory (make-pathname bdirname "deps"))
   (create-directory (make-pathname bdirname "eggs"))
   (create-directory (make-pathname bdirname "sys"))
+  (create-directory (make-pathname bdirname "include"))
+  (create-directory (make-pathname bdirname "share"))
+  (create-directory (make-pathname bdirname "bin"))
 
   ; extremely annoyingly chicken dumps its eggs and its system import libs all in the same directory
   ; we need to symlink system libs, otherwise chicken-install won't install egg dependencies
@@ -113,12 +116,15 @@
 
   ; set these via process-create when using chicken-install or invoking chicken binaries
   ; converts to alist on access. I don't support scheme pairs in ix (vehemently so)
+  ; XXX do I need to symlink anything in the share/include/bin dirs??
+  ; install prefix was enough to fix srfi-26 but I dunno what all people do with this
   (define deppath (make-pathname linkpath "deps"))
   (define eggpath (make-pathname linkpath "eggs"))
   (define syspath (make-pathname linkpath "sys"))
   (define env `(("PONTIFF_LINK_PATH" ,linkpath)
                 ("CHICKEN_EGG_CACHE" ,eggpath)
                 ("CHICKEN_INSTALL_REPOSITORY" ,eggpath)
+                ("CHICKEN_INSTALL_PREFIX" ,linkpath)
                 ("CHICKEN_REPOSITORY_PATH" ,(<> deppath ":" eggpath ":" syspath))))
 
   (set! pstate (apply ix:build!
