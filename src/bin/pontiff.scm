@@ -40,9 +40,20 @@
 ; * centralize hardcoded values in some module
 ; * command.repl, command.release
 ; * impl resolver lol
+; * link external deps. I need:
+;   - declare what libraries a pontiff project itself needs linked
+;   - determine what libraries eggs depend on that need to be statically linked
+;     it appears chicken-install doesn't do this. quick testing confirms csc building a static executable doesn't work
+;     this may be academic for now, apparantly nanomsg itself doesn't even work as a static lib
+; * build embedded. basically just set -DC_EMBEDDED. examples just have a c file that includes chicken.h and pass it to csc too
+; * cross-compilation. do not fuck with this until pontiff manages its own compilers tho
 ; and aside from that I need to do ix/json conversions and rewrite the sbml parser for viv
 ; XXX I'm a genius the "safe" way to do pontiff upgrades is write functional mappings for pontiff files across versions
 ; and then just depclean the fucking project whenever the pontiff file version and pontiff version don't match lmao
+; XXX should I just like, add a prologue that forces a proper repo string in dynamic builds?
+; the fucky thing here is... if I set it for pontiff, can pontiff use its own extensions and properly set those of its build?
+; hmm I... guess it only matters for dynamic executables, and I *think* I only "use" it for chicken-install calls
+; so if I bake in CHICKEN_REPOSITORY_PATH in pontiff it should work fine and state:env ignores it for PONTIFF_LINK_PATH anyway
 
 (define (main)
   (state:init)

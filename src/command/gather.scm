@@ -100,12 +100,12 @@
 
 ; chicken-install any eggs our project needs
 (define (gather-eggs eggs verbose)
+  (define cmd (string-intersperse `("/usr/bin/env" "chicken-install" ,@(map symbol->string eggs)
+                                    ,@(if verbose '() `("2>&1 | sed -n 's/^building.*/\\* &/p'")))))
   (printf "setting up eggs\n")
   ; note this is a shellout just to make filtering stdout reasonable
-  (process-join (process-create (string-intersperse `("/usr/bin/env" "chicken-install" ,@(map symbol->string eggs)
-                                                      ,@(if verbose '() `("2>&1 | sed -n 's/^building.*/\\* &/p'"))))
-                                #f
-                                (state:env))))
+  (when verbose (printf "~A\n\n" cmd))
+  (process-join (process-create cmd #f (state:env))))
 
 ; builds previously fetched pontiff dependencies and symlinks artifacts up into the shared deps dir
 (define (gather-deps deps verbose)

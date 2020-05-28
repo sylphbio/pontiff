@@ -21,6 +21,7 @@
 (define p-state `(pontiff:state :working-path string
                                 :build-dir string
                                 :link-path string
+                                :repo-path string
                                 :in-project boolean
                                 :subinvocation boolean
                                 :pfile (optional (sexp pontiff))

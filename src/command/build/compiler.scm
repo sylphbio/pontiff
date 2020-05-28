@@ -44,7 +44,7 @@
 (define module->unit symbol->string)
 
 (define (module->cfile tag #!optional static)
-  (let ((base (if static (<> (module->unit tag) ".static") (module->unit tag))))
+  (let ((base (if static (<> (module->unit tag) "##static") (module->unit tag))))
        (make-pathname #f base "c")))
 
 (define (module->ofile tag #!optional static)
@@ -85,17 +85,22 @@
                               '()
                               local-imports))
 
-  ; XXX not clear on whether these things should be set for toplevel or all modules
-  (define toplevel-clauses (if (and dynamic library is-root)
-                               `("-dynamic" "-feature" "chicken-compile-shared")
-                               '()))
+  ; XXX I'm not going to bother setting the chicken features until/unless I find out they actually matter
+  ; at least not without a list of what they are
+  ; so far I've found: chicken-compile-shared, compiling-extension, compiling-static-extension
+  (define feature-clauses
+    (cond ((and dynamic library is-root) `("-feature" "pontiff-dynamic-library"))
+          ((and static library is-root) `("-feature" "pontiff-static-library"))
+          ((and dynamic executable is-root) `("-feature" "pontiff-dynamic-executable"))
+          ((and static executable is-root) `("-feature" "pontiff-static-executable"))
+          (else '())))
 
-  (define static-clauses (if static
-                             `("-static" "-module-registration")
-                             '()))
+  (define dyn/stat-clauses (if static
+                               `("-static" "-module-registration")
+                               `("-dynamic")))
 
   (define args `("chicken" ,infile "-output-file" ,outfile ,@user-flags ,@(cscflags)
-                 ,@unit-clauses ,@uses-clauses ,@toplevel-clauses ,@static-clauses))
+                 ,@unit-clauses ,@feature-clauses ,@dyn/stat-clauses ,@uses-clauses))
 
   (when verbose (printf "~A\n\n" (string-intersperse (cons binenv args))))
   (process-run binenv args (state:env)))
@@ -190,6 +195,10 @@
   (define dynamic (not static))
 
   (change-directory (state:build-dir))
+
+  ; XXX TODO FIXME NEXT THING I want to translate the template and write it out to disk
+  ; then pull it in when building toplevel
+  ; tbh tho this requires a lot more thought/testing than I have put into it and I don't want to do it rn
 
   (define cc-pids (compile-loop filtered-adjlist modules '() artifact static verbose))
   (printf "* csc done\n")

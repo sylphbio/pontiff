@@ -45,6 +45,7 @@
 
 (define repo `(pontiff:repository :name symbol
                                   :vcs (enum git) ; XXX support svn, maybe mercurial, maybe pijul
+                                  ; XXX support branch
                                   :url string))
 
 (define dir `(pontiff:directory :name symbol

@@ -1,4 +1,4 @@
-(module state (init version version-string working-path build-dir link-path in-project subinvocation
+(module state (init version version-string working-path build-dir link-path repo-path in-project subinvocation
                pfile mfile dfile save-pfile save-mfile save-dfile env)
 
 (import scheme)
@@ -121,16 +121,18 @@
   (define deppath (make-pathname linkpath "deps"))
   (define eggpath (make-pathname linkpath "eggs"))
   (define syspath (make-pathname linkpath "sys"))
+  (define repopath (<> deppath ":" eggpath ":" syspath))
   (define env `(("PONTIFF_LINK_PATH" ,linkpath)
                 ("CHICKEN_EGG_CACHE" ,eggpath)
                 ("CHICKEN_INSTALL_REPOSITORY" ,eggpath)
                 ("CHICKEN_INSTALL_PREFIX" ,linkpath)
-                ("CHICKEN_REPOSITORY_PATH" ,(<> deppath ":" eggpath ":" syspath))))
+                ("CHICKEN_REPOSITORY_PATH" ,repopath)))
 
   (set! pstate (apply ix:build!
     `(pontiff:state :working-path ,pwd
                     :build-dir ,bdirname
                     :link-path ,linkpath
+                    :repo-path ,repopath
                     :in-project ,in-project
                     :subinvocation ,subinv
                     ,@pfile-kv
@@ -144,6 +146,7 @@
 (define (working-path)  (access! :working-path))
 (define (build-dir)     (access! :build-dir))
 (define (link-path)     (access! :link-path))
+(define (repo-path)     (access! :repo-path))
 (define (in-project)    (access! :in-project))
 (define (subinvocation) (access! :subinvocation))
 ; file is optional, so this may fail. we force from-just for interface uniformity
