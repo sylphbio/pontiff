@@ -27,15 +27,6 @@
 (define (filter-skippable mm)
   (filter* (lambda (m) (not ((^.!! (keyw :skip-compile)) m))) mm))
 
-(define (save-file path str)
-  (call-with-output-file path (lambda (p) (write-string str #f p))))
-
-(define (load-file path)
-  (and (file-exists? path)
-       (file-readable? path)
-       (let ((s (call-with-input-file path (lambda (p) (read-string #f p)))))
-            (if (eof-object? s) "" s))))
-
 ; XXX get rid of this once I implement a robust ix prettyprinter
 (define (pp-ix sx)
   (define lead (<> "(" (stringify:ix (cadr sx)) " "))
@@ -44,17 +35,7 @@
   (define pad (<> "\n" (make-string (string-length lead) #\space)))
   (<> lead (string-intersperse kvs pad) ")\n"))
 
-; same as process-run except it invokes execve instead of execvp
-; also always shell out to /bin/sh, using the user's shell seems like a recipe for madness
-(define (process-create cmd #!optional args vars)
-  (let ((env (foldl (lambda (acc e) (alist-update (car e) (cdr e) acc equal?))
-                    (get-environment-variables)
-                    (if (list? vars) vars '())))
-        (pid (process-fork)))
-       (cond ((not (= pid 0)) pid)
-             (args (process-execute cmd args env))
-             (else (process-execute "/bin/sh" `("-c" ,cmd) env)))))
-
+; XXX I'd kinda like to move this into tabulae as well but idk how to handle the custom errors cleanly
 (define (process-join pid)
   (call-with-values (lambda () (process-wait pid))
                     (lambda (pid clean code) (when (not clean) (die "process ~S terminated abnormally with ~S" pid code))
