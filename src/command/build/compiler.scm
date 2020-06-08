@@ -15,10 +15,14 @@
 (import ix)
 
 (import (prefix state state:))
+(import (prefix command.build.template template:))
 (import util)
 (import graph)
 
 (define binenv "/usr/bin/env")
+
+(define (prologue-path)
+  (make-pathname (state:link-path) "pontiff-prologue" "scm"))
 
 (define (lpath #!optional subdir)
   (if subdir
@@ -88,6 +92,7 @@
   ; XXX I'm not going to bother setting the chicken features until/unless I find out they actually matter
   ; at least not without a list of what they are
   ; so far I've found: chicken-compile-shared, compiling-extension, compiling-static-extension
+  ; XXX UPDATE afaict we're not actually allowed to cond-expand on custom features, these are prolly useless
   (define feature-clauses
     (cond ((and dynamic library is-root) `("-feature" "pontiff-dynamic-library"))
           ((and static library is-root) `("-feature" "pontiff-static-library"))
@@ -95,12 +100,16 @@
           ((and static executable is-root) `("-feature" "pontiff-static-executable"))
           (else '())))
 
+  ; this sets repopath for dynamics. eventually could be a staging point for pontiff extensions
+  ; I need to think hard and test this tho it is fraught conceptually
+  (define prologue-clause `("-prologue" ,(prologue-path)))
+
   (define dyn/stat-clauses (if static
                                `("-static" "-module-registration")
                                `("-dynamic")))
 
   (define args `("chicken" ,infile "-output-file" ,outfile ,@user-flags ,@(cscflags)
-                 ,@unit-clauses ,@feature-clauses ,@dyn/stat-clauses ,@uses-clauses))
+                 ,@unit-clauses ,@feature-clauses ,@dyn/stat-clauses ,@prologue-clause ,@uses-clauses))
 
   (when verbose (printf "~A\n\n" (string-intersperse (cons binenv args))))
   (process-run binenv args (state:env)))
@@ -187,25 +196,29 @@
   (process-join (cc import-tag :is-root #t :library #t :static #f :verbose verbose))
   (process-join (ld `(,import-tag) import-tag :library #t :static #f :verbose verbose)))
 
-; XXX TODO FIXME we need to pass deps to ld when building statically, figure this out as I implement pontiff gather
 (define (compile modules artifact static verbose)
   (define filtered-adjlist (map module->adjlist (filter-skippable modules)))
   (define all-module-tags (map (^.!! (keyw :name)) modules))
   (define library (library? artifact))
   (define dynamic (not static))
 
+  ; move into pontiff work because import files dump to pwd
   (change-directory (state:build-dir))
 
-  ; XXX TODO FIXME NEXT THING I want to translate the template and write it out to disk
-  ; then pull it in when building toplevel
-  ; tbh tho this requires a lot more thought/testing than I have put into it and I don't want to do it rn
+  ; write out the prologue appended to every file, so far this just fixes the repo path
+  (define rlist (sprintf "~S" (string-split (state:repo-path) ":")))
+  (define prologue (string-translate* template:prologue `(("##REPOS##" . ,rlist))))
+  (save-file (prologue-path) prologue)
 
+  ; main loop that runs csc parallel intrabatch, and cc fully parallel
   (define cc-pids (compile-loop filtered-adjlist modules '() artifact static verbose))
   (printf "* csc done\n")
 
+  ; close out all the cc pids
   (for-each process-join cc-pids)
   (printf "* cc done\n")
 
+  ; for static libraries we bundle everything into archives for convenience, otherwise link
   (cond ((and static library)
          (process-join (ar all-module-tags ((^.!! (keyw :name)) artifact) :verbose verbose))
          (printf "* ar done\n"))
@@ -213,10 +226,12 @@
          (process-join (ld all-module-tags ((^.!! (keyw :name)) artifact) :library library :static static :verbose verbose))
          (printf "* ld done\n")))
 
+  ; and dynamic libs we also need to build the import lib
   (when (and dynamic library)
         (for-each (lambda (tag) (compile-import-so tag verbose)) all-module-tags)
         (printf "* import libraries done\n"))
 
+  ; done!
   (change-directory (state:working-path)))
 
 )

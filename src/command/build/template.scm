@@ -3,21 +3,11 @@
 (import scheme)
 (import chicken.base)
 
-(define prologue #<<EOF
-(module pontiff-prologue ()
+(define prologue #<<EOM
+(import chicken.platform)
+(repository-path `##REPOS##)
 
-(import scheme)
-(import chicken.base)
-
-(cond-expand
-  ((or pontiff-dynamic-executable pontiff-dynamic-library)
-   (import chicken.process-context)
-   (set-environment-variable! "CHICKEN_REPOSITORY_PATH" ##REPO##))
-  (else))
-
-)
-
-EOF
+EOM
 )
 
 )

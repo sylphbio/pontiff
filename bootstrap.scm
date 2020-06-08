@@ -25,9 +25,9 @@ exec csi -s "$0" "$@"
 ; get by printing in build-artifact: (map (lambda (m) (car (module->adjlist m))) sorted-modules)
 (define tabulae-order `(tabulae.base tabulae.monad tabulae.parsec tabulae))
 (define ix-order `(ix.static ix.stringify ix.base ix.lens ix.build ix.parse ix))
-(define pontiff-order `(util prototype.internal prototype.argv prototype.file command.new.template graph prototype
-                        state argv command.new command.gather command.build.compiler command.run command.clean
-                        command.build command.test command bin.pontiff))
+(define pontiff-order `(util prototype.internal prototype.argv prototype.file command.new.template command.build.template
+                        graph prototype state argv command.new command.gather command.build.compiler command.run
+                        command.clean command.build command.test command bin.pontiff))
 
 ; these just remember to keep current lol
 (define egg-deps `("srfi-1" "getopt-long" "simple-sha1" "uuid" "test"))
