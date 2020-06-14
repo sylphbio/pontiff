@@ -19,7 +19,7 @@
 (import tabulae.monad)
 (import ix)
 
-(import (prefix prototype prototype:))
+(import prototype)
 (import util)
 
 (define pstate #f)
@@ -65,7 +65,7 @@
 
 (define (init)
   ; set up ix prototypes
-  (ix:init prototype:prototype)
+  (ix:register prototypes)
 
   (define pwd (current-directory))
   (set-buffering-mode! (current-output-port) :full)
