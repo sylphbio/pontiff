@@ -6,11 +6,6 @@
 (import chicken.string)
 (import chicken.format)
 
-(import test)
-
-(test-group "basic tests"
-  (test "lgtm!" 4 (+ 2 2)))
-
-(test-exit)
+(error "pontiff has no meaningful unit testing because anything nontrivial relies on numerous external programs/services. run integration tests instead")
 
 )

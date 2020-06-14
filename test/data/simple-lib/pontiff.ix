@@ -1,0 +1,21 @@
+(pontiff :name simple-lib
+         :version {0 1 0}
+         :pontiff-version {0 1 0}
+         :synopsis ""
+         :authors []
+         :license "BSD-3"
+         :repository (pontiff:repository :name simple-lib :vcs git :url "")
+         :category uncategorized
+         :tags []
+         :source-dir "src"
+         :test-dir "test"
+         :csc-flags ["-keyword-style" "prefix" "-specialize" "-local" "-lfa2"
+                     "-inline" "-inline-global" "-optimize-leaf-routines"]
+         :cc clang
+         :ld lld
+         :artifacts [(pontiff:library :name simple-lib :root simple-lib)]
+         :tests []
+         :dependencies []
+         :resolver alice
+         :egg-dependencies []
+         :egg-resolver chicken-install)
