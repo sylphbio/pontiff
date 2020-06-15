@@ -67,7 +67,7 @@
 ; helper function for build/run that searches the project's artifacts for a cli-specified one
 (define (locate-artifact artifact-list tag)
   (do/m <either>
-    (let ((a (find* (lambda (a) (eq? ((^.!! (keyw :name)) a) tag)) artifact-list)))
+    (let ((a (find* (lambda (a) (eq? ((^.v (keyw :name)) a) tag)) artifact-list)))
          (if a
              (return a)
              (fail `(1 . ,(<> "pontiff error: no artifact named " (symbol->string tag))))))))
@@ -94,10 +94,10 @@
     (declare artifact-name (if (string? (alist-ref artifact-type args))
                                (string->symbol (alist-ref artifact-type args))
                                project-name))
-    (maybe->either (ix:build 'pontiff:new:argv :project-name project-name
-                                               :artifact-type (symbol-append 'pontiff: artifact-type)
-                                               :artifact-name artifact-name)
-                   `(1 . "pontiff error: failed to build argv ix"))))
+    (to-either (ix:build 'pontiff:new:argv :project-name project-name
+                                           :artifact-type (symbol-append 'pontiff: artifact-type)
+                                           :artifact-name artifact-name)
+               `(1 . "pontiff error: failed to build argv ix"))))
 
 (define (gather-builder argv)
   (do/m <either>
@@ -106,8 +106,8 @@
     ; no extraneous input
     (to-either (= (length (alist-ref '@ args)) 0)
                `(1 . "pontiff error: extraneous input"))
-    (maybe->either (ix:build 'pontiff:gather:argv :verbose (alist-ref 'verbose args))
-                   `(1 . "pontiff error: failed to build argv ix"))))
+    (to-either (ix:build 'pontiff:gather:argv :verbose (alist-ref 'verbose args))
+               `(1 . "pontiff error: failed to build argv ix"))))
 
 (define (build-builder argv)
   (do/m <either>
@@ -117,7 +117,7 @@
     (to-either (= (length (alist-ref '@ args)) 0)
                `(1 . "pontiff error: extraneous input"))
     ; this is safe because I validate the file when state loads it
-    (declare project-artifacts ((^.!! (keyw :artifacts)) (state:pfile)))
+    (declare project-artifacts ((^.v (keyw :artifacts)) (state:pfile)))
     ; all > all-libs > artifact > implicit
     (build-artifacts <- (cond ((alist-ref 'all args) (return project-artifacts))
                               ((alist-ref 'all-libs args) (return (filter* library? project-artifacts)))
@@ -128,13 +128,13 @@
     ; static flag is only meaningful for executables because libraries always build both
     (to-either (not (and (alist-ref 'static args) (any* library? build-artifacts)))
                `(1 . "pontiff error: cannot specify --static for libraries"))
-    (maybe->either (ix:build 'pontiff:build:argv :artifacts build-artifacts
-                                                 :dry-run (alist-ref 'dry-run args)
-                                                 :force (alist-ref 'force args)
-                                                 :gather (not (alist-ref 'no-gather args))
-                                                 :static (alist-ref 'static args)
-                                                 :verbose (alist-ref 'verbose args))
-                   `(1 . "pontiff error: failed to build argv ix"))))
+    (to-either (ix:build 'pontiff:build:argv :artifacts build-artifacts
+                                             :dry-run (alist-ref 'dry-run args)
+                                             :force (alist-ref 'force args)
+                                             :gather (not (alist-ref 'no-gather args))
+                                             :static (alist-ref 'static args)
+                                             :verbose (alist-ref 'verbose args))
+               `(1 . "pontiff error: failed to build argv ix"))))
 
 (define (run-builder argv)
   (do/m <either>
@@ -146,9 +146,9 @@
     (to-either (= (length (alist-ref '@ args)) 0)
                `(1 . "pontiff error: extraneous input"))
     ; get pfile executables
-    (declare project-artifacts (filter* executable? ((^.!! (keyw :artifacts)) (state:pfile))))
+    (declare project-artifacts (filter* executable? ((^.v (keyw :artifacts)) (state:pfile))))
     ; artifact > implicit (sole) > implicit (project name)
-    (declare name-match? (lambda (e) (eq? ((^.!! (keyw :name)) e) ((^.!! (keyw :name)) (state:pfile)))))
+    (declare name-match? (lambda (e) (eq? ((^.v (keyw :name)) e) ((^.v (keyw :name)) (state:pfile)))))
     (artifact <- (cond ((alist-ref 'artifact args)
                         (locate-artifact project-artifacts (string->symbol (alist-ref 'artifact args))))
                        ((= (length project-artifacts) 1)
@@ -156,8 +156,8 @@
                        ((any* name-match? project-artifacts)
                         (find* name-match? project-artifacts))
                        (else (fail `(1 . "pontiff error: could not determine suitable artifact")))))
-    (maybe->either (ix:build 'pontiff:run:argv :artifact artifact :exec-args (drop* (+ argv-div 1) argv))
-                   `(1 . "pontiff error: failed to build argv ix"))))
+    (to-either (ix:build 'pontiff:run:argv :artifact artifact :exec-args (drop* (+ argv-div 1) argv))
+               `(1 . "pontiff error: failed to build argv ix"))))
 
 ; XXX TODO restructure this kinda like build with a pref stack of what actually to run
 ; --unit and --integration should be shorthands for an -A flag of those names
@@ -177,8 +177,8 @@
     (declare test-type (cond ((or all-flag (and unit-flag integ-flag)) 'all)
                              (integ-flag 'integration)
                              (else 'unit)))
-    (maybe->either (ix:build 'pontiff:test:argv :type test-type)
-                   `(1 . "pontiff error: failed to build argv ix"))))
+    (to-either (ix:build 'pontiff:test:argv :type test-type)
+               `(1 . "pontiff error: failed to build argv ix"))))
 
 (define (clean-builder argv)
   (do/m <either>
@@ -187,8 +187,8 @@
     ; no extraneous input
     (to-either (= (length (alist-ref '@ args)) 0)
                `(1 . "pontiff error: extraneous input"))
-    (maybe->either (ix:build 'pontiff:clean:argv :depclean (alist-ref 'depclean args))
-                   `(1 . "pontiff error: failed to build argv ix"))))
+    (to-either (ix:build 'pontiff:clean:argv :depclean (alist-ref 'depclean args))
+               `(1 . "pontiff error: failed to build argv ix"))))
 
 (define (command-builder cmd)
   (to-maybe (case cmd

@@ -18,7 +18,7 @@
 (import command.clean)
 
 (define (dispatch argv)
-  (define tag (ix:ident->tag ((^.! ident) argv)))
+  (define tag (ix:ident->tag ((^. ident) argv)))
   (to-either
     (case tag
       ((pontiff:new:argv)    (new argv))

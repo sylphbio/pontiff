@@ -70,7 +70,7 @@
   (define outfile (module->cfile tag static))
   (define inlinefile (module->inline tag))
   (define typefile (module->types tag))
-  (define user-flags (map ix:unwrap! ((^.!! (keyw :csc-flags)) (state:pfile))))
+  (define user-flags (map ix:unwrap ((^.v (keyw :csc-flags)) (state:pfile))))
 
   ; anything except an exe root is a unit
   (define unit-clauses (if (and is-module (not (and executable is-root)))
@@ -117,7 +117,7 @@
 ; compile a single c to o
 (define (cc tag #!key is-root library static verbose)
   (define dynamic (not static))
-  (define cc (symbol->string ((^.!! (keyw :cc)) (state:pfile))))
+  (define cc (symbol->string ((^.v (keyw :cc)) (state:pfile))))
   (define infile (module->cfile tag static))
   (define outfile (module->ofile tag static))
 
@@ -143,8 +143,8 @@
 
 ; link all. this is never called for static libraries
 (define (ld module-tags artifact-tag #!key library static verbose)
-  (define cc (symbol->string ((^.!! (keyw :cc)) (state:pfile))))
-  (define ld (symbol->string ((^.!! (keyw :ld)) (state:pfile))))
+  (define cc (symbol->string ((^.v (keyw :cc)) (state:pfile))))
+  (define ld (symbol->string ((^.v (keyw :ld)) (state:pfile))))
   (define infiles (map (lambda (tag) (module->ofile tag static)) module-tags))
   (define outfile (let ((basename (symbol->string artifact-tag)))
                        (if library (make-pathname #f basename "so") basename)))
@@ -175,14 +175,14 @@
              (library (library? artifact))
              (csc-pids (map (lambda (leaf) (let* ((tag (first* leaf))
                                                   (m (tag->module modules tag)))
-                                                 (csc tag ((^.!! (keyw :path)) m) :is-root ((^.!! (keyw :is-root)) m)
+                                                 (csc tag ((^.v (keyw :path)) m) :is-root ((^.v (keyw :is-root)) m)
                                                       :local-imports (second* leaf) :library library
                                                       :static static :verbose verbose)))
                             leaves))
              (_ (for-each process-join csc-pids))
              (cc-pids (map (lambda (leaf) (let* ((tag (first* leaf))
                                                  (m (tag->module modules tag)))
-                                                (cc tag :is-root ((^.!! (keyw :is-root)) m) :library library
+                                                (cc tag :is-root ((^.v (keyw :is-root)) m) :library library
                                                         :static static :verbose verbose)))
                            leaves)))
             (compile-loop branches modules (<> acc cc-pids) artifact static verbose))))
@@ -198,7 +198,7 @@
 
 (define (compile modules artifact static verbose)
   (define filtered-adjlist (map module->adjlist (filter-skippable modules)))
-  (define all-module-tags (map (^.!! (keyw :name)) modules))
+  (define all-module-tags (map (^.v (keyw :name)) modules))
   (define library (library? artifact))
   (define dynamic (not static))
 
@@ -220,10 +220,10 @@
 
   ; for static libraries we bundle everything into archives for convenience, otherwise link
   (cond ((and static library)
-         (process-join (ar all-module-tags ((^.!! (keyw :name)) artifact) :verbose verbose))
+         (process-join (ar all-module-tags ((^.v (keyw :name)) artifact) :verbose verbose))
          (printf "* ar done\n"))
         (else
-         (process-join (ld all-module-tags ((^.!! (keyw :name)) artifact) :library library :static static :verbose verbose))
+         (process-join (ld all-module-tags ((^.v (keyw :name)) artifact) :library library :static static :verbose verbose))
          (printf "* ld done\n")))
 
   ; and dynamic libs we also need to build the import lib

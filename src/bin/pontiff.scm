@@ -54,6 +54,16 @@
 ; the fucky thing here is... if I set it for pontiff, can pontiff use its own extensions and properly set those of its build?
 ; hmm I... guess it only matters for dynamic executables, and I *think* I only "use" it for chicken-install calls
 ; so if I bake in CHICKEN_REPOSITORY_PATH in pontiff it should work fine and state:env ignores it for PONTIFF_LINK_PATH anyway
+; XXX TODO I had a really good idea once I have my prologue system set up that I can also have an epilogue
+; specifically to make it so an exe exports but does not call main, and we call main in the epilogue
+; XXX I can take over lmdb-ht, the setup script is trivial and just does a bunch of legwork to verify lmdb is installed
+; the only feature I need is a way to specify library dependencies. but first need to fix pontiff dep ordering
+; also figure out when to link and what order to use...
+; dyn we just link our own, static lib we link nothing obv, static exe we need to link libs for all deps
+; order matters but repeats are allowed so could just put them in dep order. or hm I guess deduping should work
+; XXX prolly add optional cflag/ldflag things to the conf
+; XXX there's an ugly bug with -inline-global where it pulls like an elf object into module registration?
+; idk make minimal test case. at least in 5.2.0. hilariously in master it just segfaults
 
 (define (main)
   (state:init)

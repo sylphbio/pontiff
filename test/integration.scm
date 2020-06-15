@@ -65,7 +65,7 @@
   (change-directory tmp))
 
 ; XXX fetching/building eggs takes absolutely forever, I should probably mock that shit out
-#;(test-group "bootstrap"
+(test-group "bootstrap"
   (change-directory tmp)
   (create-directory "pontiff")
   (change-directory "pontiff")

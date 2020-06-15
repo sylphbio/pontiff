@@ -17,15 +17,15 @@
 (define (die msg . args) (apply printf (cons (<> "pontiff error: " msg "\n") args)) (exit 1))
 
 (define (executable? a) (if (ix:sexp? a)
-                            (eq? (ix:ident->tag ((^.! ident) a)) 'pontiff:executable)
+                            (eq? (ix:ident->tag ((^. ident) a)) 'pontiff:executable)
                             (error "not ix sexp" a)))
 
 (define (library? a) (if (ix:sexp? a)
-                         (eq? (ix:ident->tag ((^.! ident) a)) 'pontiff:library)
+                         (eq? (ix:ident->tag ((^. ident) a)) 'pontiff:library)
                          (error "not ix sexp" a)))
 
 (define (filter-skippable mm)
-  (filter* (lambda (m) (not ((^.!! (keyw :skip-compile)) m))) mm))
+  (filter* (lambda (m) (not ((^.v (keyw :skip-compile)) m))) mm))
 
 ; XXX get rid of this once I implement a robust ix prettyprinter
 (define (pp-ix sx)

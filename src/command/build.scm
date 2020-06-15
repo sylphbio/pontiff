@@ -38,21 +38,21 @@
 (define (module-path m)
   (let* ((mm-str (map symbol->string (module-split m)))
          (dir (if (equal? (car mm-str) "test")
-                  (cons ((^.!! (keyw :test-dir)) (state:pfile)) (drop-right* 1 (cdr mm-str)))
-                  (cons ((^.!! (keyw :source-dir)) (state:pfile)) (drop-right* 1 mm-str)))))
+                  (cons ((^.v (keyw :test-dir)) (state:pfile)) (drop-right* 1 (cdr mm-str)))
+                  (cons ((^.v (keyw :source-dir)) (state:pfile)) (drop-right* 1 mm-str)))))
         (make-pathname dir (car (take-right* 1 mm-str)) "scm")))
 
 ; takes a full pontiff:module object and returns a pontiff:module:block object
 (define (module->mblock module static)
-  (ix:build! 'pontiff:module:block :name ((^.!! (keyw :name)) module)
-                                   :subgraph-hash ((^.!! (keyw :subgraph-hash)) module)
-                                   :is-root ((^.!! (keyw :is-root)) module)
-                                   :static static
-                                   :dependent (state:subinvocation)))
+  (ix:build 'pontiff:module:block :name ((^. (keyw :name)) module)
+                                  :subgraph-hash ((^. (keyw :subgraph-hash)) module)
+                                  :is-root ((^. (keyw :is-root)) module)
+                                  :static static
+                                  :dependent (state:subinvocation)))
 
 ; takes a pontiff:module and returns the key that would go on the mfile
 (define (module->mkey module suffix)
-  (string->keyword (<> (symbol->string ((^.!! (keyw :name)) module))
+  (string->keyword (<> (symbol->string ((^.v (keyw :name)) module))
                        "-"
                        suffix)))
 
@@ -68,8 +68,8 @@
                      '())))
        (foldl (lambda (mfile k/v) (let ((key (first* k/v))
                                         (block (second* k/v)))
-                                       (if (just? ((^. (keyw key)) mfile))
-                                           ((.~! block (keyw key)) mfile)
+                                       (if ((^.? (keyw key)) mfile)
+                                           ((.~ block (keyw key)) mfile)
                                            (<> mfile `(,key ,block)))))
               (state:mfile)
               (<> k/vs exe-k/v))))
@@ -85,10 +85,10 @@
          ; defined as hash(file hash || all import subgraph hashes sorted by name)
          (mk-leaf-obj (lambda (v/e)
            (let* ((pmodule (tag->module objs (first* v/e)))
-                  (sg-hashes (map (lambda (e) ((^.!! (keyw :subgraph-hash)) (tag->module acc e)))
+                  (sg-hashes (map (lambda (e) ((^.v (keyw :subgraph-hash)) (tag->module acc e)))
                                   (sort (second* v/e) (lambda (s1 s2) (string<? (symbol->string s1) (symbol->string s2))))))
-                  (sg-hash (<> "sha1:" (string->sha1sum (apply <> `(,((^.!! (keyw :file-hash)) pmodule) ,@sg-hashes))))))
-                 ((.~! sg-hash (keyw :subgraph-hash)) pmodule)))))
+                  (sg-hash (<> "sha1:" (string->sha1sum (apply <> `(,((^.v (keyw :file-hash)) pmodule) ,@sg-hashes))))))
+                 ((.~ sg-hash (keyw :subgraph-hash)) pmodule)))))
         (cond ((null? adjl) acc)
               ((null? leaves) (die "could not remove further leaves, remaining graph is cyclic: ~S" (map car adjl)))
               (else (sort-dag branches objs (<> acc (map mk-leaf-obj leaves)))))))
@@ -105,9 +105,11 @@
 ; complicated intertwined projects like tabulae never get to a "nothing to do" equilibrium
 (define (skip-subgraphs modules static)
   (map (lambda (module)
-         (let ((mblock ((^. (keyw (module->mkey module (if static "static" "dynamic")))) (state:mfile))))
-              ((.~! (and (just? mblock) (equal? (module->mblock module static) (from-just mblock)))
-                    (keyw :skip-compile))
+         (let ((mk (module->mkey module (if static "static" "dynamic"))))
+              ((.~ (and ((^.? (keyw mk)) (state:mfile))
+                        (equal? (module->mblock module static)
+                                ((^. (keyw mk)) (state:mfile))))
+                   (keyw :skip-compile))
                module)))
        modules))
 
@@ -148,14 +150,14 @@
                     (system-libs (filter* (lambda (i) (or (memq i '(scheme r5rs r4rs srfi-4)) (module-of 'chicken i))) imports))
                     ; XXX FIXME this creates the annoying situation that the dep name must match the imported module names
                     ; perhaps gather should pull down a list of library artifact roots and store that somewhere?
-                    (dep-names (map (^.!! (keyw :name)) ((^.!! (keyw :dependencies)) (state:pfile))))
+                    (dep-names (map (^.v (keyw :name)) ((^.v (keyw :dependencies)) (state:pfile))))
                     (pontiff-libs (filter* (lambda (i) (any* (lambda (d) (module-of d i)) dep-names)) imports))
-                    (egg-names (map ix:unwrap! ((^.!! (keyw :egg-dependencies)) (state:pfile))))
+                    (egg-names (map ix:unwrap ((^.v (keyw :egg-dependencies)) (state:pfile))))
                     (egg-libs (filter* (lambda (i) (any* (lambda (e) (module-of e i)) egg-names)) imports))
                     ; I don't do anything with the other lists but could be nice to sanity check things?
                     (local-imports (difference* imports system-libs pontiff-libs egg-libs)))
-                   (ix:build! 'pontiff:module :name m :path path :file-hash (<> "sha1:" (sha1sum (module-path m)))
-                                              :subgraph-hash "" :is-root #f :skip-compile #f :local-imports local-imports)))))
+                   (ix:build 'pontiff:module :name m :path path :file-hash (<> "sha1:" (sha1sum (module-path m)))
+                                             :subgraph-hash "" :is-root #f :skip-compile #f :local-imports local-imports)))))
            ; a file should be nothing but compiler declarations and a single module
            ; the core constraint of pontiff is that one file = one module = one compilation unit
            (read-file (lambda (port)
@@ -180,17 +182,17 @@
 ; and in this way we work through the flattened graph without repeats or omissions
 (define (load-all-modules to-load loaded)
   (if (null? to-load)
-      ((.~! #t (idx 0) (keyw :is-root)) (reverse loaded))
+      ((.~ #t (idx 0) (keyw :is-root)) (reverse loaded))
       (let* ((m (load-module (car to-load)))
-             (m-imports (map ix:unwrap! ((^.!! (keyw :local-imports)) m)))
+             (m-imports (map ix:unwrap ((^.v (keyw :local-imports)) m)))
              (loaded^ (cons m loaded))
-             (to-load^ (union* (cdr to-load) (difference* m-imports (map (^.!! (keyw :name)) loaded^)))))
+             (to-load^ (union* (cdr to-load) (difference* m-imports (map (^.v (keyw :name)) loaded^)))))
             (load-all-modules to-load^ loaded^))))
 
 ; build a single artifact
 (define (build-artifact artifact #!optional verbose static dry-run force-build)
-  (define aname ((^.!! (keyw :name)) artifact))
-  (define aroot ((^.!! (keyw :root)) artifact))
+  (define aname ((^.v (keyw :name)) artifact))
+  (define aroot ((^.v (keyw :root)) artifact))
   (define build-dynamic (or (library? artifact) (not static)))
   (define build-static (or (library? artifact) static))
 
@@ -221,9 +223,9 @@
                              (build-static (skip-subgraphs sorted-modules #t))
                              (else '())))
 
-  (define relink (let ((sll ((^. (keyw (module->mkey artifact "static-last-link"))) (state:mfile))))
-                      (or (nothing? sll)
-                          (not (eq? (ix:unwrap! (from-just sll)) static)))))
+  (define relink (let ((kw (module->mkey artifact "static-last-link")))
+                      (not (and ((^.? (keyw kw)) (state:mfile))
+                                (eqv? (ix:unwrap ((^. (keyw kw)) (state:mfile))) static)))))
 
   (define do-dyn (or (not (null? (filter-skippable dyn-modules)))
                      (and (executable? artifact)
@@ -258,18 +260,18 @@
               (printf "~S build finished\n" aname))))
 
 (define (build argv)
-  (define verbose ((^.!! (keyw :verbose)) argv))
-  (define static ((^.!! (keyw :static)) argv))
-  (define dry-run ((^.!! (keyw :dry-run)) argv))
-  (define force-build ((^.!! (keyw :force)) argv))
+  (define verbose ((^.v (keyw :verbose)) argv))
+  (define static ((^.v (keyw :static)) argv))
+  (define dry-run ((^.v (keyw :dry-run)) argv))
+  (define force-build ((^.v (keyw :force)) argv))
 
   ; gather deps for all artifacts
-  (when ((^.!! (keyw :gather)) argv)
-        (command:gather (ix:build! 'pontiff:gather:argv :verbose verbose)))
+  (when ((^.v (keyw :gather)) argv)
+        (command:gather (ix:build 'pontiff:gather:argv :verbose verbose)))
 
   ; build each artifact in turn
   (for-each (lambda (a) (build-artifact a verbose static dry-run force-build))
-            ((^.!! (keyw :artifacts)) argv))
+            ((^.v (keyw :artifacts)) argv))
   (printf "all builds complete\n"))
 
 )

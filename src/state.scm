@@ -71,14 +71,12 @@
   (set-buffering-mode! (current-output-port) :full)
 
   ; load pfile, if it exists
-  (define pfile (do/m <maybe>
-    (>>= (to-maybe (load-file pfilename))
-         parse:ix
-         ((curry* ix:validate-as) 'pontiff))))
+  (define pfile (let ((pf (load-file pfilename)))
+                     (and pf (ix:validate-as 'pontiff (parse:ix pf)))))
 
   ; existence of a pfile means we are necessarily in a project
-  (define in-project (just? pfile))
-  (define pfile-kv (if in-project `(:pfile ,(from-just pfile)) '()))
+  (define in-project (not (not pfile)))
+  (define pfile-kv (if in-project `(:pfile ,pfile) '()))
 
   ; we set this in gather when invoking build for dependencies
   (define subinv (let ((v (get-environment-variable "PONTIFF_SUBINVOCATION")))
@@ -96,23 +94,14 @@
   (when (and in-project (not subinv)) (init-build-dir linkpath))
 
   ; this is an ix:* where keys are module name dash static/dynamic, values are mfile block objects
-  (define mfile (do/m <maybe>
-    (>>= (to-maybe (load-file (make-pathname bdirname mfilename)))
-         parse:ix)))
-
-  (define mfile-v (if (just? mfile)
-                      (from-just mfile)
-                      (ix:build! 'ix:*)))
+  (define mfile (let ((mf (load-file (make-pathname bdirname mfilename))))
+                     (if mf (parse:ix mf) (ix:build 'ix:*))))
 
   ; this is two lists of symbols, corresponding to eggs and deps last built
-  (define dfile (do/m <maybe>
-    (>>= (to-maybe (load-file (make-pathname bdirname dfilename)))
-         parse:ix
-         ((curry* ix:validate-as) 'pontiff:state:deplist))))
-
-  (define dfile-v (if (just? dfile)
-                      (from-just dfile)
-                      (ix:build! 'pontiff:state:deplist :eggs '() :deps '())))
+  (define dfile (let ((df (load-file (make-pathname bdirname dfilename))))
+                (if df
+                    (ix:validate-as 'pontiff:state:deplist (parse:ix df))
+                    (ix:build 'pontiff:state:deplist :eggs '() :deps '()))))
 
   ; set these via process-create when using chicken-install or invoking chicken binaries
   ; converts to alist on access. I don't support scheme pairs in ix (vehemently so)
@@ -128,7 +117,7 @@
                 ("CHICKEN_INSTALL_PREFIX" ,linkpath)
                 ("CHICKEN_REPOSITORY_PATH" ,repopath)))
 
-  (set! pstate (apply ix:build!
+  (set! pstate (apply ix:build
     `(pontiff:state :working-path ,pwd
                     :build-dir ,bdirname
                     :link-path ,linkpath
@@ -136,25 +125,25 @@
                     :in-project ,in-project
                     :subinvocation ,subinv
                     ,@pfile-kv
-                    :mfile ,mfile-v
-                    :dfile ,dfile-v
+                    :mfile ,mfile
+                    :dfile ,dfile
                     :env ,env))))
 
-(define (access kw) (and pstate ((^.! (keyw kw)) pstate)))
-(define (access! kw) (and pstate ((^.!! (keyw kw)) pstate)))
+(define (access kw) (and pstate ((^. (keyw kw)) pstate)))
+(define (access-u kw) (and pstate ((^.v (keyw kw)) pstate)))
 
-(define (working-path)  (access! :working-path))
-(define (build-dir)     (access! :build-dir))
-(define (link-path)     (access! :link-path))
-(define (repo-path)     (access! :repo-path))
-(define (in-project)    (access! :in-project))
-(define (subinvocation) (access! :subinvocation))
+(define (working-path)  (access-u :working-path))
+(define (build-dir)     (access-u :build-dir))
+(define (link-path)     (access-u :link-path))
+(define (repo-path)     (access-u :repo-path))
+(define (in-project)    (access-u :in-project))
+(define (subinvocation) (access-u :subinvocation))
 ; file is optional, so this may fail. we force from-just for interface uniformity
 ; we gate any command except new by in-project anyway
 (define (pfile)         (access :pfile))
 (define (mfile)         (access :mfile))
 (define (dfile)         (access :dfile))
-(define (env)           (map (lambda (prod) (cons (ix:unwrap! (second* prod)) (ix:unwrap! (third* prod)))) (access! :env)))
+(define (env)           (map (lambda (prod) (cons (ix:unwrap (second* prod)) (ix:unwrap (third* prod)))) (access-u :env)))
 
 (define (save-pfile sx)
   (if (not (file-exists? pfilename))
@@ -164,11 +153,11 @@
 (define (save-mfile sx)
   (when (not (in-project)) (error "cannot save mfile outside of project"))
   (save-file (make-pathname `(,(working-path) ,(build-dir)) mfilename) (pp-ix sx))
-  (set! pstate ((.~! sx (keyw :mfile)) pstate)))
+  (set! pstate ((.~ sx (keyw :mfile)) pstate)))
 
 (define (save-dfile sx)
   (when (not (in-project)) (error "cannot save dfile outside of project"))
   (save-file (make-pathname `(,(working-path) ,(build-dir)) dfilename) (pp-ix sx))
-  (set! pstate ((.~! sx (keyw :dfile)) pstate)))
+  (set! pstate ((.~ sx (keyw :dfile)) pstate)))
 
 )

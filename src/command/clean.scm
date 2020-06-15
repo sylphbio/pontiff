@@ -29,7 +29,7 @@
   (create-directory (state:build-dir)))
 
 (define (clean argv)
-  (if ((^.!! (keyw :depclean)) argv)
+  (if ((^.v (keyw :depclean)) argv)
       (dep-clean)
       (simple-clean))
   (printf "clean complete\n"))

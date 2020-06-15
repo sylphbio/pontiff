@@ -21,12 +21,12 @@
 
 ; dumb convenience function
 (define (access-dlist kw sx)
-  (map (lambda (d) (if (ix:symbol? d) (ix:unwrap! d) d))
-       ((^.!! (keyw kw)) sx)))
+  (map (lambda (d) (if (ix:symbol? d) (ix:unwrap d) d))
+       ((^.v (keyw kw)) sx)))
 
 ; very dumb convenience function
 (define (dname d)
-  (cond ((ix:sexp? d) ((^.!! (keyw :name)) d))
+  (cond ((ix:sexp? d) ((^.v (keyw :name)) d))
         ((symbol? d) d)
         (else (die "cannot get name of unknown dependency form: ~S" d))))
 
@@ -39,19 +39,13 @@
 ; XXX FIXME aaaaa I wanted to keep the filename in state but I have no mechanism to load a pfile not for the current project
 ; this should be cleaned up later but it is entirely a case of ritual propriety, not shoddiness
 (define (load-pfile name dir)
-  (let ((pfile (do/m <maybe>
-          (>>= (to-maybe (load-file (make-pathname dir "pontiff" "ix")))
-                         parse:ix
-                         ((curry* ix:validate-as) 'pontiff)))))
-       (if (just? pfile)
-           (from-just pfile)
-           (die "failed to load pontiff.ix for ~S" name))))
+  (ix:validate-as 'pontiff (parse:ix (load-file (make-pathname dir "pontiff" "ix")))))
 
 ; takes a pontiff:repository object, clones it, parses and returns its pontiff file
 (define (clone-repo r dir)
-  (let* ((name ((^.!! (keyw :name)) r))
-         (vcs ((^.!! (keyw :vcs)) r))
-         (url ((^.!! (keyw :url)) r)))
+  (let* ((name ((^.v (keyw :name)) r))
+         (vcs ((^.v (keyw :vcs)) r))
+         (url ((^.v (keyw :url)) r)))
         (case vcs
           ((git) (process-join (process-create "/usr/bin/env" `("git" "clone" ,url ,dir))))
           (else (die "unknown or unimplemented vcs ~S" vcs)))
@@ -59,8 +53,8 @@
 
 ; takes a pontiff:filepath and symlinks the directory, parses and returns pontiff file
 (define (link-directory p dst)
-  (let* ((name ((^.!! (keyw :name)) p))
-         (src ((^.!! (keyw :path)) p)))
+  (let* ((name ((^.v (keyw :name)) p))
+         (src ((^.v (keyw :path)) p)))
         (when (not (absolute-pathname? src)) (die "dependency path for module ~S must be absolute" name))
         (when (not (directory-exists? src)) (die "no directory ~S for module ~S" src name))
         (create-symbolic-link src dst)
@@ -81,7 +75,7 @@
                       ((ix:ident=? 'pontiff:directory d) (link-directory d dir))
                       ((symbol? d) (resolve-dep d dir))
                       (else (die "cannot fetch unknown dependency form: ~S" d)))))
-        (when (not (dep=? ((^.!! (keyw :name)) pfile) d)) (die "name mismatch for dependency ~S" d))
+        (when (not (dep=? ((^.v (keyw :name)) pfile) d)) (die "name mismatch for dependency ~S" d))
         pfile))
 
 ; this works much like build's load-all-modules, memoized breadth-first graph traversal
@@ -94,7 +88,7 @@
              (new-eggs (access-dlist :egg-dependencies pfile))
              (new-deps (access-dlist :dependencies pfile))
              (eggs^ (union* eggs new-eggs))
-             (loaded^ (cons ((^.!! (keyw :name)) pfile) loaded))
+             (loaded^ (cons ((^.v (keyw :name)) pfile) loaded))
              (to-load^ (union-by* dep=? (cdr to-load) (difference-by* dep=? new-deps loaded^))))
             (fetch-all-deps to-load^ eggs^ loaded^))))
 
@@ -124,6 +118,8 @@
          (change-directory (state:working-path))))
     deps))
 
+; XXX TODO FIXME fucking this doesn't actually properly build recursive pontiff dependencies
+; also apparantly it doesn't sort them either??? I thought I fucking wrote this
 ; the basic flow here is we recursively clone/curl/link our project's pontiff deps, their deps, etc
 ; nub out two flat lists of eggs and deps. chicken-install all the eggs locally to the project
 ; chicken-install handles missing egg dependencies, so we never need to touch egg files
@@ -131,7 +127,7 @@
 ; then with eggs in place we can build our pontiff deps and link the artifacts in a central location
 ; unfortunately because chicken needs to see import libraries we have to do this all in serial
 (define (gather argv)
-  (define verbose ((^.!! (keyw :verbose)) argv))
+  (define verbose ((^.v (keyw :verbose)) argv))
   (define force-gather #f) ; XXX TODO impl this
 
   ; fetch pontiff dependencies recursively, returning a pair of a list of egg names and dep names
@@ -144,8 +140,8 @@
   ; again, required-* is the intersection of all pontiff files' declarations
   (define required-eggs (first* eggs/deps))
   (define required-deps (second* eggs/deps))
-  (define existing-eggs (map ix:unwrap! ((^.!! (keyw :eggs)) (state:dfile))))
-  (define existing-deps (map ix:unwrap! ((^.!! (keyw :deps)) (state:dfile))))
+  (define existing-eggs (map ix:unwrap ((^.v (keyw :eggs)) (state:dfile))))
+  (define existing-deps (map ix:unwrap ((^.v (keyw :deps)) (state:dfile))))
   (define missing-eggs (difference* required-eggs existing-eggs))
   (define missing-deps (difference* required-deps existing-deps))
 
@@ -156,11 +152,11 @@
   ; next install all eggs locally to this project
   (when (not (null? do-eggs)) (gather-eggs do-eggs verbose))
   ; sorry my lenses still aren't perfect
-  (state:save-dfile ((.~! (ix:wrap 'list (map (lambda (e) (ix:wrap 'symbol e)) required-eggs)) (keyw :eggs)) (state:dfile)))
+  (state:save-dfile ((.~ (ix:wrap 'list (map (lambda (e) (ix:wrap 'symbol e)) required-eggs)) (keyw :eggs)) (state:dfile)))
 
   ; then build all pontiff dependencies
   (when (not (null? do-deps)) (gather-deps do-deps verbose))
-  (state:save-dfile ((.~! (ix:wrap 'list (map (lambda (d) (ix:wrap 'symbol d)) required-deps)) (keyw :deps)) (state:dfile)))
+  (state:save-dfile ((.~ (ix:wrap 'list (map (lambda (d) (ix:wrap 'symbol d)) required-deps)) (keyw :deps)) (state:dfile)))
 
   (when (or (not (null? do-eggs)) (not (null? do-deps))) (printf "gather complete\n")))
 
