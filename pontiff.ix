@@ -19,5 +19,6 @@
          :dependencies [(pontiff:repository :name tabulae :vcs git :url "https://github.com/sylphbio/tabulae.git")
                         (pontiff:repository :name ix :vcs git :url "https://github.com/sylphbio/ix.git")]
          :resolver alice
+         :lib-dependencies []
          :egg-dependencies [srfi-1 getopt-long simple-sha1 test]
          :egg-resolver chicken-install)
