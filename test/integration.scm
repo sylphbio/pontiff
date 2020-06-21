@@ -64,8 +64,27 @@
   (trivial-builds "simple-exe" #t)
   (change-directory tmp))
 
+(test-group "external link"
+  (change-directory (make-pathname dat "external-link"))
+  (trivial-builds "simple-exe" #t)
+  (change-directory tmp))
+
+(test-group "self-hosting (no deps)"
+  (change-directory tmp)
+  ; copy so we don't have to gather
+  (system* (string-intersperse `("cp" "-r" ,pwd ".")))
+  (change-directory "pontiff")
+
+  (pexe "clean")
+  (test-assert "dynamic build" (pexe "build"))
+  (test-assert "run" (pexe "run" "--" "--help"))
+
+  (pexe "clean")
+  (test-assert "static build" (pexe "build" "--static"))
+  (test-assert "run" (pexe "run" "--" "--help")))
+
 ; XXX fetching/building eggs takes absolutely forever, I should probably mock that shit out
-(test-group "bootstrap"
+#;(test-group "bootstrap"
   (change-directory tmp)
   (create-directory "pontiff")
   (change-directory "pontiff")

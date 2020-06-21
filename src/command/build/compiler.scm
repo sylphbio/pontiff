@@ -60,6 +60,9 @@
 (define (module->types tag)
   (make-pathname #f (module->unit tag) "types"))
 
+(define (lib->flag sym)
+  (<> "-l" (symbol->string (ix:unwrap sym))))
+
 ; compile a single scm to c
 (define (csc tag path #!key is-root (local-imports '()) (is-module #t) library static verbose)
   (define executable (not library))
@@ -143,6 +146,7 @@
 
 ; link all. this is never called for static libraries
 (define (ld module-tags artifact-tag #!key library static verbose)
+  (define executable (not library))
   (define cc (symbol->string ((^.v (keyw :cc)) (state:pfile))))
   (define ld (symbol->string ((^.v (keyw :ld)) (state:pfile))))
   (define infiles (map (lambda (tag) (module->ofile tag static)) module-tags))
@@ -151,6 +155,7 @@
 
   (define shared-clauses (if library `("-shared") '()))
   (define link-clauses (if static `("-static" "-l:libchicken.a") `("-lchicken")))
+  (define lib-clauses (if executable (map lib->flag ((^.v (keyw :libs)) (state:dfile))) '()))
 
   ; XXX this is extremely dumb. can I just use the egg/dep imports from load-module?
   ; what I want is to only link things a given artifact uses. need to think about how to turn imports to artifact names tho
@@ -159,7 +164,7 @@
   (define dep-infiles (if static (glob (make-pathname "deps" "*.a")) '()))
 
   (define args `(,cc ,@infiles ,@egg-infiles ,@dep-infiles "-o" ,outfile ,(<> "-fuse-ld=" ld) ,@(ldflags)
-                 ,@shared-clauses ,@link-clauses "-lm" "-ldl"))
+                 ,@shared-clauses ,@link-clauses "-lm" "-ldl" ,@lib-clauses))
 
   (when verbose (printf "~A\n\n" (string-intersperse (cons binenv args))))
   (process-run binenv args))

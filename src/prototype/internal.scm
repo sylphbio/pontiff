@@ -30,6 +30,7 @@
                                 :env (list (product string string))))
 
 (define dfile `(pontiff:state:deplist :eggs (list symbol)
-                                      :deps (list symbol)))
+                                      :deps (list symbol)
+                                      :libs (list symbol)))
 
 )

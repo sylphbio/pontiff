@@ -40,6 +40,7 @@
                        ; XXX TODO separate out test deps
                        :dependencies (list (sum symbol (sexp pontiff:repository) (sexp pontiff:directory)))
                        :resolver (enum alice) ; highly advanced technology
+                       :lib-dependencies (list symbol)
                        :egg-dependencies (list symbol)
                        :egg-resolver (enum chicken-install))) ; XXX write my own resolver
 

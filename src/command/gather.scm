@@ -22,8 +22,9 @@
 
 ; dumb convenience function
 (define (access-dlist kw sx)
-  (map (lambda (d) (if (ix:symbol? d) (ix:unwrap d) d))
-       ((^.v (keyw kw)) sx)))
+  (let ((dl ((^. (keyw kw)) sx)))
+       (map (lambda (d) (if (ix:symbol? d) (ix:unwrap d) d))
+            (if dl (ix:unwrap dl) '()))))
 
 ; very dumb convenience function
 (define (dname d)
@@ -81,20 +82,22 @@
         pfile))
 
 ; this works much like build's load-all-modules, memoized breadth-first graph traversal
-; returns a list of eggs and an adjlist of pontiff dependencies
+; returns a list of eggs, adjlist of pontiff dependencies, list of linkable libraries
 ; note because this dedupes top-down you can actually use the pontiff file to do dependency injection
-(define (fetch-all-deps to-load egg-list dep-adjlist)
+(define (fetch-all-deps to-load egg-list dep-adjlist lib-list)
   (if (null? to-load)
-      `(,egg-list ,dep-adjlist)
+      `(,egg-list ,dep-adjlist ,lib-list)
       (let* ((pfile (fetch-dep (car to-load)))
              (new-eggs (access-dlist :egg-dependencies pfile))
              (new-deps (access-dlist :dependencies pfile))
+             (new-libs (access-dlist :lib-dependencies pfile))
              (eggs^ (union* egg-list new-eggs))
              ; this is a simple adjlist
              (deps^ `((,((^.v (keyw :name)) pfile) ,(map dname new-deps)) ,@dep-adjlist))
+             (libs^ (union* lib-list new-libs))
              ; this however preserves the full pfile component, needed by fetch-dep to determine how to fetch it
              (to-load^ (union-by* dep=? (cdr to-load) (difference-by* dep=? new-deps (map car dep-adjlist)))))
-            (fetch-all-deps to-load^ eggs^ deps^))))
+            (fetch-all-deps to-load^ eggs^ deps^ libs^))))
 
 ; chicken-install any eggs our project needs
 (define (gather-eggs eggs verbose)
@@ -134,15 +137,17 @@
 
   ; fetch pontiff dependencies recursively, returning a pair of a list of egg names and dep names
   (printf "checking dependencies\n")
-  (define eggs/deps (fetch-all-deps (access-dlist :dependencies (state:pfile))
-                                    (access-dlist :egg-dependencies (state:pfile))
-                                    '()))
+  (define e/d/l (fetch-all-deps (access-dlist :dependencies (state:pfile))
+                                (access-dlist :egg-dependencies (state:pfile))
+                                '()
+                                (access-dlist :lib-dependencies (state:pfile))))
 
   ; figure out what eggs and deps we actually need to get
   ; again, required-* is the intersection of all pontiff files' declarations
-  (define required-eggs (first* eggs/deps))
-  (define required-deps (let ((d (sort-dag (second* eggs/deps))))
-                             (if d (map car d) (die "cycle(s) detected in dependency graph: ~S" (second* eggs/deps)))))
+  (define required-eggs (first* e/d/l))
+  (define required-deps (let ((d (sort-dag (second* e/d/l))))
+                             (if d (map car d) (die "cycle(s) detected in dependency graph: ~S" (second* e/d/l)))))
+  (define required-libs (third* e/d/l))
 
   (define existing-eggs (map ix:unwrap ((^.v (keyw :eggs)) (state:dfile))))
   (define existing-deps (map ix:unwrap ((^.v (keyw :deps)) (state:dfile))))
@@ -162,6 +167,9 @@
   ; then build all pontiff dependencies
   (when (not (null? do-deps)) (gather-deps do-deps verbose))
   (state:save-dfile ((.~ (ix:wrap 'list (map (lambda (d) (ix:wrap 'symbol d)) required-deps)) (keyw :deps)) (state:dfile)))
+
+  ; and write out libs, compile driver will link as necessary
+  (state:save-dfile ((.~ (ix:wrap 'list (map (lambda (d) (ix:wrap 'symbol d)) required-libs)) (keyw :libs)) (state:dfile)))
 
   (when (or (not (null? do-eggs)) (not (null? do-deps))) (printf "gather complete\n")))
 

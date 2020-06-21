@@ -101,7 +101,7 @@
   (define dfile (let ((df (load-file (make-pathname bdirname dfilename))))
                 (if df
                     (ix:validate-as 'pontiff:state:deplist (parse:ix df))
-                    (ix:build 'pontiff:state:deplist :eggs '() :deps '()))))
+                    (ix:build 'pontiff:state:deplist :eggs '() :deps '() :libs '()))))
 
   ; set these via process-create when using chicken-install or invoking chicken binaries
   ; converts to alist on access. I don't support scheme pairs in ix (vehemently so)
