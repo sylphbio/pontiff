@@ -18,7 +18,7 @@
 
 (import (prefix state state:))
 (import util)
-(import graph)
+(import (except graph sort-dag))
 (import (prefix command.gather command:))
 (import command.build.compiler)
 
@@ -97,10 +97,6 @@
 ; * same subgraph hashes
 ; * same root/nonroot position in the graph
 ; * same dependent/independent last build status (for when symlinking on-disk dependencies in
-; XXX we need to track whether each exe artifact has last been built static or dynamic also
-; and relink altho we don't necessarily need to rebuild
-; XXX also the dependent bool could be one thing on the mfile object if we add another schema on top
-; but may just be simpler to do it like this anyway
 ; XXX TODO I may want to carve out a root/branch file distinction like I have static/dynamic
 ; complicated intertwined projects like tabulae never get to a "nothing to do" equilibrium
 (define (skip-subgraphs modules static)

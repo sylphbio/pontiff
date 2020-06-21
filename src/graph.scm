@@ -28,4 +28,15 @@
   (let ((vv (vertexes adjl)))
        (partition* (lambda (v/e) (null? (intersect* vv (second* v/e)))) adjl)))
 
+; straightforward. actually not used by build because build needs to hash the subgraphs
+(define sort-dag
+  (letrec ((sort-dag (lambda (adjl acc)
+             (let* ((parts (cutleaves adjl))
+                    (leaves (first* parts))
+                    (branches (second* parts)))
+                   (cond ((null? adjl) acc)
+                         ((null? leaves) #f) ; graph cycles
+                         (else (sort-dag branches (<> acc leaves))))))))
+          (lambda (adjl) (sort-dag adjl '()))))
+
 )

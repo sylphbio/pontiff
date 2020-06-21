@@ -18,6 +18,7 @@
 
 (import (prefix state state:))
 (import util)
+(import graph)
 
 ; dumb convenience function
 (define (access-dlist kw sx)
@@ -28,6 +29,7 @@
 (define (dname d)
   (cond ((ix:sexp? d) ((^.v (keyw :name)) d))
         ((symbol? d) d)
+        ; XXX TODO symbol plus version constraint
         (else (die "cannot get name of unknown dependency form: ~S" d))))
 
 ; compare names of two dependencies of any form
@@ -79,18 +81,20 @@
         pfile))
 
 ; this works much like build's load-all-modules, memoized breadth-first graph traversal
-; returns two lists of unwrapped symbols
+; returns a list of eggs and an adjlist of pontiff dependencies
 ; note because this dedupes top-down you can actually use the pontiff file to do dependency injection
-(define (fetch-all-deps to-load eggs loaded)
+(define (fetch-all-deps to-load egg-list dep-adjlist)
   (if (null? to-load)
-      `(,eggs ,(reverse loaded))
+      `(,egg-list ,dep-adjlist)
       (let* ((pfile (fetch-dep (car to-load)))
              (new-eggs (access-dlist :egg-dependencies pfile))
              (new-deps (access-dlist :dependencies pfile))
-             (eggs^ (union* eggs new-eggs))
-             (loaded^ (cons ((^.v (keyw :name)) pfile) loaded))
-             (to-load^ (union-by* dep=? (cdr to-load) (difference-by* dep=? new-deps loaded^))))
-            (fetch-all-deps to-load^ eggs^ loaded^))))
+             (eggs^ (union* egg-list new-eggs))
+             ; this is a simple adjlist
+             (deps^ `((,((^.v (keyw :name)) pfile) ,(map dname new-deps)) ,@dep-adjlist))
+             ; this however preserves the full pfile component, needed by fetch-dep to determine how to fetch it
+             (to-load^ (union-by* dep=? (cdr to-load) (difference-by* dep=? new-deps (map car dep-adjlist)))))
+            (fetch-all-deps to-load^ eggs^ deps^))))
 
 ; chicken-install any eggs our project needs
 (define (gather-eggs eggs verbose)
@@ -118,14 +122,12 @@
          (change-directory (state:working-path))))
     deps))
 
-; XXX TODO FIXME fucking this doesn't actually properly build recursive pontiff dependencies
-; also apparantly it doesn't sort them either??? I thought I fucking wrote this
 ; the basic flow here is we recursively clone/curl/link our project's pontiff deps, their deps, etc
-; nub out two flat lists of eggs and deps. chicken-install all the eggs locally to the project
-; chicken-install handles missing egg dependencies, so we never need to touch egg files
-; it does annoyingly force us to link all eggs to all artifacts however
+; nub out a flat list of eggs, sort a dag of all pontiff deps
+; install all the eggs locally to the project. chicken-install handles eggs depended on by eggs
+; it does annoyingly force us to link all eggs to all artifacts however, since we don't want to touch egg info files
 ; then with eggs in place we can build our pontiff deps and link the artifacts in a central location
-; unfortunately because chicken needs to see import libraries we have to do this all in serial
+; XXX I could build pontiff dep leaf layers in parallel but I won't bother until the ecosystem is bigger
 (define (gather argv)
   (define verbose ((^.v (keyw :verbose)) argv))
   (define force-gather #f) ; XXX TODO impl this
@@ -139,9 +141,12 @@
   ; figure out what eggs and deps we actually need to get
   ; again, required-* is the intersection of all pontiff files' declarations
   (define required-eggs (first* eggs/deps))
-  (define required-deps (second* eggs/deps))
+  (define required-deps (let ((d (sort-dag (second* eggs/deps))))
+                             (if d (map car d) (die "cycle(s) detected in dependency graph: ~S" (second* eggs/deps)))))
+
   (define existing-eggs (map ix:unwrap ((^.v (keyw :eggs)) (state:dfile))))
   (define existing-deps (map ix:unwrap ((^.v (keyw :deps)) (state:dfile))))
+
   (define missing-eggs (difference* required-eggs existing-eggs))
   (define missing-deps (difference* required-deps existing-deps))
 
