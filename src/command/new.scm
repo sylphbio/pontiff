@@ -46,6 +46,7 @@
                               ,(ix:build 'pontiff:executable :name 'integration :root 'test.integration))
                      :dependencies '()
                      :resolver 'alice
+                     :lib-dependencies '()
                      :egg-dependencies '(test)
                      :egg-resolver 'chicken-install))
 
