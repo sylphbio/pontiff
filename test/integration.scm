@@ -66,7 +66,7 @@
 
 (test-group "external link"
   (change-directory (make-pathname dat "external-link"))
-  (trivial-builds "simple-exe" #t)
+  (trivial-builds "external-link" #t)
   (change-directory tmp))
 
 (test-group "self-hosting (no deps)"

@@ -17,5 +17,6 @@
          :tests []
          :dependencies [(pontiff:directory :name simple-lib :path "##TMPDIR##simple-lib")]
          :resolver alice
+         :lib-dependencies []
          :egg-dependencies [srfi-1]
          :egg-resolver chicken-install)

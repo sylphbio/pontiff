@@ -113,10 +113,14 @@
   (printf "compiling dependencies\n")
   (for-each (lambda (name)
     (let ((dpath (make-pathname `(,(state:working-path) ,(state:build-dir) "deps") (symbol->string name))))
+         (when verbose (printf "cd ~A\n" dpath))
          (change-directory dpath)
+         (define build-exe (executable-pathname))
+         (define build-args `("build" "--all-libs" "--no-gather" ,@(if verbose `("--verbose") '())))
+         (when verbose (printf (<> (string-intersperse (cons build-exe build-args)) "\n")))
          ; note for subinvoke we always use whatever binary this is
-         (process-join (process-create (executable-pathname)
-                                       `("build" "--all-libs" "--no-gather" ,@(if verbose `("--verbose") '()))
+         (process-join (process-create build-exe
+                                       build-args
                                        (cons `("PONTIFF_SUBINVOCATION" . "1") (state:env))))
          (for-each (lambda (src) (let ((dst (normalize-pathname (make-pathname `(,dpath "..") (pathname-strip-directory src)))))
                                       (when (not (file-exists? dst)) (create-symbolic-link src dst))))

@@ -17,5 +17,6 @@
          :tests []
          :dependencies []
          :resolver alice
+         :lib-dependencies []
          :egg-dependencies []
          :egg-resolver chicken-install)
