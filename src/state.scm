@@ -14,6 +14,7 @@
 (import chicken.file.posix)
 (import chicken.foreign)
 (import chicken.io)
+(import chicken.read-syntax)
 
 (import tabulae)
 (import tabulae.monad)
@@ -61,7 +62,21 @@
                                (when (not (file-exists? dst)) (create-symbolic-link src dst))))
             (glob (make-pathname libdir "chicken.*.import.so")
                   (make-pathname libdir "srfi-4.import.so")
-                  (make-pathname libdir "types.db"))))
+                  (make-pathname libdir "types.db")))
+
+  ; this weirdo thing is just to transform inline c into something read won't choke on
+  ; obviously this fails if you include the closing sharp in a c string or comment
+  ; so... don't do that!
+  (set-sharp-read-syntax! #\> (lambda (p) (letrec ((f (lambda (p acc)
+    (let ((c (read-char p)))
+         (cond ((and (eqv? c #\<) (eqv? (peek-char p) #\#))
+                (read-char p)
+                (list->string (reverse acc)))
+               ((eof-object? c)
+                (die "eof while parsing foreign sharp"))
+               (else
+                (f p (cons c acc))))))))
+    `(foreign-declare ,(f p '()))))))
 
 (define (init)
   ; set up ix prototypes
