@@ -40,8 +40,8 @@
                    ,(<> "-I" (lpath "include"))
                    ,(<> "-I" (foreign-value C_TARGET_INCLUDE_HOME c-string))))
 
-(define (ldflags) `(,@(ld-lpaths "-L") "-L/usr/lib" "-L/usr/local/lib"
-                    ,@(ld-lpaths "-Wl,-R") "-Wl,-R/usr/lib" "-Wl,-R/usr/local/lib"
+(define (ldflags) `(,@(ld-lpaths "-L") "-L/usr/local/lib" "-L/usr/lib" "-L/usr/local/lib64" "-L/usr/lib64"
+                    ,@(ld-lpaths "-Wl,-R") "-Wl,-R/usr/local/lib" "-Wl,-R/usr/lib" "-Wl,-R/usr/local/lib64" "-Wl,-R/usr/lib64"
                     ,(<> "-L" (foreign-value C_TARGET_LIB_HOME c-string))
                     ,(<> "-Wl,-R" (foreign-value C_TARGET_LIB_HOME c-string))))
 

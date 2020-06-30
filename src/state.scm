@@ -73,6 +73,9 @@
   ; we also symlink in any includes the project might have
   ; as above, this will agglomerate everything in the ultimate root build dir
   ; XXX TODO document somewhere the fact that this feature exists lol. or create include dir for new projects
+  ; XXX TODO FIXME good job genius now you need to keep hashes of these files too
+  ; lazy way is just rebuild if any change
+  ; glowy genius brain way is to treat them as if they were leaf modules and include them in subgraph hashes
   (when (directory-exists? "include")
         (symlink-files link-path "include" (glob (make-pathname `(,pwd "include") "*"))))
 
