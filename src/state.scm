@@ -43,9 +43,18 @@
 (define mfilename "modules.ix")
 (define dfilename "deps.ix")
 
+; symlinks a list of paths into dstdir
+; we use this to set up inlcudes and syslibs for our eggy sandbox
+(define (symlink-files link-path dstdir files)
+  (for-each (lambda (src) (let ((dst (make-pathname `(,link-path ,dstdir)
+                                                    (pathname-strip-directory src))))
+                               (when (not (or (file-exists? dst) (symbolic-link? dst)))
+                                     (create-symbolic-link src dst))))
+            files))
+
 ; sets up subdirectories and symlinks system libs when not subinvoked
 ; everything this does is idempotent
-(define (init-build-dir link-path)
+(define (init-build-dir pwd link-path)
   ; straightforward
   (create-directory (make-pathname bdirname "deps"))
   (create-directory (make-pathname bdirname "eggs"))
@@ -57,12 +66,15 @@
   ; extremely annoyingly chicken dumps its eggs and its system import libs all in the same directory
   ; we need to symlink system libs, otherwise chicken-install won't install egg dependencies
   ; this all goes away when pontiff manages the compiler and stdlib itself
-  (for-each (lambda (src) (let ((dst (make-pathname `(,link-path "sys")
-                                                    (pathname-strip-directory src))))
-                               (when (not (file-exists? dst)) (create-symbolic-link src dst))))
-            (glob (make-pathname libdir "chicken.*.import.so")
-                  (make-pathname libdir "srfi-4.import.so")
-                  (make-pathname libdir "types.db")))
+  (symlink-files link-path "sys" (glob (make-pathname libdir "chicken.*.import.so")
+                                 (make-pathname libdir "srfi-4.import.so")
+                                 (make-pathname libdir "types.db")))
+
+  ; we also symlink in any includes the project might have
+  ; as above, this will agglomerate everything in the ultimate root build dir
+  ; XXX TODO document somewhere the fact that this feature exists lol. or create include dir for new projects
+  (when (directory-exists? "include")
+        (symlink-files link-path "include" (glob (make-pathname `(,pwd "include") "*"))))
 
   ; this weirdo thing is just to transform inline c into something read won't choke on
   ; obviously this fails if you include the closing sharp in a c string or comment
@@ -106,7 +118,7 @@
 
   ; always need build dir, but subinvs use the caller's egg/sys
   (when in-project (create-directory bdirname))
-  (when (and in-project (not subinv)) (init-build-dir linkpath))
+  (when (and in-project (not subinv)) (init-build-dir pwd linkpath))
 
   ; this is an ix:* where keys are module name dash static/dynamic, values are mfile block objects
   (define mfile (let ((mf (load-file (make-pathname bdirname mfilename))))

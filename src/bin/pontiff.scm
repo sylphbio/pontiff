@@ -50,6 +50,7 @@
 ; XXX there's an ugly bug with -inline-global where it pulls like an elf object into module registration?
 ; idk make minimal test case. at least in 5.2.0. hilariously in master it just segfaults
 ; XXX TODO when I break out vcs, use the git egg. need to link git2
+; XXX making tests parallelizable would be nice
 
 (define (main)
   (state:init)

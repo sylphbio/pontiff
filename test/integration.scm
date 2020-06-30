@@ -64,9 +64,15 @@
   (trivial-builds "simple-exe" #t)
   (change-directory tmp))
 
+; XXX I test by linking lmdb, pick something with less egg dependencies, too slow
 (test-group "external link"
   (change-directory (make-pathname dat "external-link"))
   (trivial-builds "external-link" #t)
+  (change-directory tmp))
+
+(test-group "external include"
+  (change-directory (make-pathname dat "external-include"))
+  (trivial-builds "external-include" #t)
   (change-directory tmp))
 
 (test-group "self-hosting (no deps)"
