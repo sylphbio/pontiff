@@ -30,7 +30,7 @@ exec csi -s "$0" "$@"
                         command.clean command.build command.test command bin.pontiff))
 
 ; these just remember to keep current lol
-(define egg-deps `("srfi-1" "getopt-long" "simple-sha1" "uuid" "test"))
+(define egg-deps `("srfi-1" "getopt-long" "simple-sha1" "uuid" "json" "test"))
 
 ; this is rude but I don't have my list helpers from tabulae so whatever
 ; hardly even in the top ten of things I'd have to fix if we ever support windows
