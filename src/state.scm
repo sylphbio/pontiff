@@ -76,22 +76,9 @@
   ; XXX TODO FIXME good job genius now you need to keep hashes of these files too
   ; lazy way is just rebuild if any change
   ; glowy genius brain way is to treat them as if they were leaf modules and include them in subgraph hashes
+  ; XXX TODO FIXME this should almost certainly happen for subinvs, but I need to test
   (when (directory-exists? "include")
-        (symlink-files link-path "include" (glob (make-pathname `(,pwd "include") "*"))))
-
-  ; this weirdo thing is just to transform inline c into something read won't choke on
-  ; obviously this fails if you include the closing sharp in a c string or comment
-  ; so... don't do that!
-  (set-sharp-read-syntax! #\> (lambda (p) (letrec ((f (lambda (p acc)
-    (let ((c (read-char p)))
-         (cond ((and (eqv? c #\<) (eqv? (peek-char p) #\#))
-                (read-char p)
-                (list->string (reverse acc)))
-               ((eof-object? c)
-                (die "eof while parsing foreign sharp"))
-               (else
-                (f p (cons c acc))))))))
-    `(foreign-declare ,(f p '()))))))
+        (symlink-files link-path "include" (glob (make-pathname `(,pwd "include") "*")))))
 
 (define (init)
   ; set up ix prototypes
@@ -122,6 +109,20 @@
   ; always need build dir, but subinvs use the caller's egg/sys
   (when in-project (create-directory bdirname))
   (when (and in-project (not subinv)) (init-build-dir pwd linkpath))
+
+  ; this weirdo thing is just to transform inline c into something read won't choke on
+  ; obviously this fails if you include the closing sharp in a c string or comment
+  ; so... don't do that!
+  (set-sharp-read-syntax! #\> (lambda (p) (letrec ((f (lambda (p acc)
+    (let ((c (read-char p)))
+         (cond ((and (eqv? c #\<) (eqv? (peek-char p) #\#))
+                (read-char p)
+                (list->string (reverse acc)))
+               ((eof-object? c)
+                (die "eof while parsing foreign sharp"))
+               (else
+                (f p (cons c acc))))))))
+    `(foreign-declare ,(f p '())))))
 
   ; this is an ix:* where keys are module name dash static/dynamic, values are mfile block objects
   (define mfile (let ((mf (load-file (make-pathname bdirname mfilename))))
