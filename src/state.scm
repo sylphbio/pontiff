@@ -124,9 +124,9 @@
                 (f p (cons c acc))))))))
     `(foreign-declare ,(f p '())))))
 
-  ; this is an ix:* where keys are module name dash static/dynamic, values are mfile block objects
+  ; this is generic ix where keys are module name dash static/dynamic, values are mfile block objects
   (define mfile (let ((mf (load-file (make-pathname bdirname mfilename))))
-                     (if mf (parse:ix mf) (ix:build 'ix:*))))
+                     (if mf (parse:ix mf) (ix:build 'ix))))
 
   ; this is two lists of symbols, corresponding to eggs and deps last built
   (define dfile (let ((df (load-file (make-pathname bdirname dfilename))))

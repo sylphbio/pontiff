@@ -25,7 +25,7 @@
                                 :in-project boolean
                                 :subinvocation boolean
                                 :pfile (optional (sexp pontiff))
-                                :mfile (sexp ix:*)
+                                :mfile (sexp ix)
                                 :dfile (sexp pontiff:state:deplist)
                                 :env (list (product string string))))
 
