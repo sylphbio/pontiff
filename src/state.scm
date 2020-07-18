@@ -82,7 +82,7 @@
 
 (define (init)
   ; set up ix prototypes
-  (ix:register prototypes)
+  (ix:register! prototypes)
 
   (define pwd (current-directory))
   (set-buffering-mode! (current-output-port) :full)
