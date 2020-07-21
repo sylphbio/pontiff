@@ -32,7 +32,7 @@
 (define (ld-lpaths prefix)
   (map ((curry* <>) prefix) `(,(lpath) ,(lpath "deps") ,(lpath "eggs") ,(lpath "sys"))))
 
-(define (cscflags) `("-include-path" ,(lpath) "-include-path" ,(lpath "deps") "-include-path" ,(lpath "eggs")
+(define (cscflags) `("-setup-mode" "-include-path" ,(lpath) "-include-path" ,(lpath "deps")"-include-path" ,(lpath "eggs")
                      "-include-path" ,(lpath "sys") "-include-path" ,(lpath "include")))
 
 (define (cflags) `("-c" "-fno-strict-aliasing" "-fwrapv" "-DHAVE_CHICKEN_CONFIG_H" "-DC_ENABLE_PTABLES"
