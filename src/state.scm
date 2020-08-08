@@ -141,7 +141,7 @@
   (define deppath (make-pathname linkpath "deps"))
   (define eggpath (make-pathname linkpath "eggs"))
   (define syspath (make-pathname linkpath "sys"))
-  (define repopath (<> deppath ":" eggpath ":" syspath))
+  (define repopath (<> linkpath ":" deppath ":" eggpath ":" syspath))
   (define env `(("PONTIFF_LINK_PATH" ,linkpath)
                 ("CHICKEN_EGG_CACHE" ,eggpath)
                 ("CHICKEN_INSTALL_REPOSITORY" ,eggpath)
