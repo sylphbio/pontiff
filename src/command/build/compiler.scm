@@ -55,10 +55,10 @@
   (pathname-replace-extension (module->cfile tag static) "o"))
 
 (define (module->inline tag)
-  (make-pathname "inline" (module->unit tag) "inline"))
+  (make-pathname #f (module->unit tag) "inline"))
 
 (define (module->types tag)
-  (make-pathname "types" (module->unit tag) "types"))
+  (make-pathname #f (module->unit tag) "types"))
 
 (define (lib->flag sym)
   (<> "-l" (symbol->string (ix:unwrap sym))))
