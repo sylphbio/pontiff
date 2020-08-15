@@ -56,12 +56,8 @@
 ; everything this does is idempotent
 (define (init-build-dir pwd link-path)
   ; straightforward
-  (create-directory (make-pathname bdirname "deps"))
-  (create-directory (make-pathname bdirname "eggs"))
-  (create-directory (make-pathname bdirname "sys"))
-  (create-directory (make-pathname bdirname "include"))
-  (create-directory (make-pathname bdirname "share"))
-  (create-directory (make-pathname bdirname "bin"))
+  (for-each (lambda (d) (create-directory (make-pathname bdirname d)))
+            `("deps" "eggs" "sys" "include" "share" "bin" "types" "inline"))
 
   ; extremely annoyingly chicken dumps its eggs and its system import libs all in the same directory
   ; we need to symlink system libs, otherwise chicken-install won't install egg dependencies

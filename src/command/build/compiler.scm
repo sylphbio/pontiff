@@ -55,10 +55,10 @@
   (pathname-replace-extension (module->cfile tag static) "o"))
 
 (define (module->inline tag)
-  (make-pathname #f (module->unit tag) "inline"))
+  (make-pathname "inline" (module->unit tag) "inline"))
 
 (define (module->types tag)
-  (make-pathname #f (module->unit tag) "types"))
+  (make-pathname "types" (module->unit tag) "types"))
 
 (define (lib->flag sym)
   (<> "-l" (symbol->string (ix:unwrap sym))))
@@ -79,18 +79,22 @@
   (define unit-clauses (if (and is-module (not (and executable is-root)))
                            `("-unit" ,unit-name
                              "-emit-import-library" ,module-name
-                             ; XXX doesn't work? "-emit-inline-file" ,inlinefile
+                             "-emit-inline-file" ,inlinefile
                              "-emit-types-file" ,typefile)
                            '()))
 
   ; technically we only need uses flags for static builds but no harm
   ; XXX I don't know if I need these for nonlocal imports but I don't think so?
-  (define uses-clauses (foldl (lambda (acc i) (<> acc
-                                                  `("-uses" ,(module->unit i)
-                                                    ; XXX emit doesn't work? "-consult-inline-file" ,(module->inline i)
-                                                    "-consult-types-file" ,(module->types i))))
-                              '()
-                              local-imports))
+  (define uses-clauses
+    (foldl (lambda (acc i) (let* ((ifile (module->inline i))
+                                  (consult-inline (if (file-exists? ifile)
+                                                      `("-consult-inline-file" ,ifile)
+                                                      '())))
+                                 (<> acc `("-uses" ,(module->unit i)
+                                           ,@consult-inline
+                                           "-consult-types-file" ,(module->types i)))))
+           '()
+           local-imports))
 
   ; XXX I'm not going to bother setting the chicken features until/unless I find out they actually matter
   ; at least not without a list of what they are
