@@ -81,7 +81,7 @@
          (leaves (first* parts))
          (branches (second* parts))
          ; takes a vertex/edge pair from the adjlist, locates the object for the vertex
-         ; gathers subgraph hashes for all imports, assigns the vertex a subgraph hash
+         ; computes subgraph hashes for all imports, assigns the vertex a subgraph hash
          ; defined as hash(file hash || all import subgraph hashes sorted by name)
          (mk-leaf-obj (lambda (v/e)
            (let* ((pmodule (tag->module objs (first* v/e)))
@@ -146,9 +146,9 @@
                     (system-libs (filter* (lambda (i) (or (memq i '(scheme r5rs r4rs srfi-4)) (module-of 'chicken i))) imports))
                     ; XXX FIXME this creates the annoying situation that the dep name must match the imported module names
                     ; perhaps gather should pull down a list of library artifact roots and store that somewhere?
-                    (dep-names (map (^.v (keyw :name)) ((^.v (keyw :dependencies)) (state:pfile))))
+                    (dep-names (map ix:unwrap ((^.v (keyw :deps)) (state:dfile))))
                     (pontiff-libs (filter* (lambda (i) (any* (lambda (d) (module-of d i)) dep-names)) imports))
-                    (egg-names (map ix:unwrap ((^.v (keyw :egg-dependencies)) (state:pfile))))
+                    (egg-names (map ix:unwrap ((^.v (keyw :eggs)) (state:dfile))))
                     (egg-libs (filter* (lambda (i) (any* (lambda (e) (module-of e i)) egg-names)) imports))
                     ; I don't do anything with the other lists but could be nice to sanity check things?
                     (local-imports (difference* imports system-libs pontiff-libs egg-libs)))
@@ -261,9 +261,9 @@
   (define dry-run ((^.v (keyw :dry-run)) argv))
   (define force-build ((^.v (keyw :force)) argv))
 
-  ; gather deps for all artifacts
+  ; gather deps for build artifacts
   (when ((^.v (keyw :gather)) argv)
-        (command:gather (ix:build 'pontiff:gather:argv :verbose verbose)))
+        (command:gather (ix:build 'pontiff:gather:argv :all #f :verbose verbose)))
 
   ; build each artifact in turn
   (for-each (lambda (a) (build-artifact a verbose static dry-run force-build))

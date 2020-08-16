@@ -23,7 +23,9 @@
                 (value (optional <name>)))))
 
 (define gather-grammar
-  `((verbose  "verbose output"
+  `((all      "include test dependencies"
+              (single-char #\a))
+    (verbose  "verbose output"
               (single-char #\v))))
 
 (define build-grammar
@@ -52,12 +54,15 @@
                  (single-char #\a))
     (integration "run integration tests"
                  (single-char #\i))
+    (no-gather   "do not fetch or build dependencies")
     (unit        "run unit tests (default)"
-                 (single-char #\u))))
+                 (single-char #\u))
+    (verbose     "verbose output"
+                 (single-char #\v))))
 
 (define clean-grammar
-  `((depclean "also remove all dependencies"
-              (single-char #\d))))
+  `((deps     "also remove pontiff dependencies")
+    (spotless "remove everything")))
 
 (define (getopt grammar argv)
   (do/m <maybe>
@@ -106,7 +111,8 @@
     ; no extraneous input
     (to-either (= (length (alist-ref '@ args)) 0)
                `(1 . "pontiff error: extraneous input"))
-    (to-either (ix:build 'pontiff:gather:argv :verbose (alist-ref 'verbose args))
+    (to-either (ix:build 'pontiff:gather:argv :all (alist-ref 'all args)
+                                              :verbose (alist-ref 'verbose args))
                `(1 . "pontiff error: failed to build argv ix"))))
 
 (define (build-builder argv)
@@ -177,7 +183,9 @@
     (declare test-type (cond ((or all-flag (and unit-flag integ-flag)) 'all)
                              (integ-flag 'integration)
                              (else 'unit)))
-    (to-either (ix:build 'pontiff:test:argv :type test-type)
+    (to-either (ix:build 'pontiff:test:argv :type test-type
+                                            :gather (not (alist-ref 'no-gather args))
+                                            :verbose (alist-ref 'verbose args))
                `(1 . "pontiff error: failed to build argv ix"))))
 
 (define (clean-builder argv)
@@ -187,7 +195,8 @@
     ; no extraneous input
     (to-either (= (length (alist-ref '@ args)) 0)
                `(1 . "pontiff error: extraneous input"))
-    (to-either (ix:build 'pontiff:clean:argv :depclean (alist-ref 'depclean args))
+    (declare extent (if (alist-ref 'spotless args) 'all (if (alist-ref 'deps args) 'deps 'project)))
+    (to-either (ix:build 'pontiff:clean:argv :extent extent)
                `(1 . "pontiff error: failed to build argv ix"))))
 
 (define (command-builder cmd)

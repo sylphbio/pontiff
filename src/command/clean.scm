@@ -15,23 +15,28 @@
 
 (import (prefix state state:))
 
-(define (simple-clean)
+(define (targeted-clean deps)
   (change-directory (state:build-dir))
+
   (for-each delete-file
             (filter* (lambda (file) (and (not (directory? file))
                                          (not (equal? file "deps.ix"))))
                      (directory)))
+
+  (when deps (delete-file "deps.ix")
+             (delete-directory "deps" #t))
+
   (change-directory (state:working-path)))
 
-; XXX should depclean also subinvoke clean on directory deps? something to consider
-(define (dep-clean)
+(define (wanton-clean)
   (delete-directory (state:build-dir) #t)
   (create-directory (state:build-dir)))
 
 (define (clean argv)
-  (if ((^.v (keyw :depclean)) argv)
-      (dep-clean)
-      (simple-clean))
+  (case ((^.v (keyw :extent)) argv)
+    ((project) (targeted-clean #f))
+    ((deps) (targeted-clean #t))
+    ((all) (wanton-clean)))
   (printf "clean complete\n"))
 
 )

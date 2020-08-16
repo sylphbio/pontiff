@@ -136,15 +136,18 @@
 ; then with eggs in place we can build our pontiff deps and link the artifacts in a central location
 ; XXX I could build pontiff dep leaf layers in parallel but I won't bother until the ecosystem is bigger
 (define (gather argv)
+  (define gather-all ((^.v (keyw :all)) argv))
   (define verbose ((^.v (keyw :verbose)) argv))
   (define force-gather #f) ; XXX TODO impl this
 
   ; fetch pontiff dependencies recursively, returning a pair of a list of egg names and dep names
+  ; we dedupe unconditionally to prevent heisenbugs but really you should not have duplicates
   (printf "checking dependencies\n")
-  (define e/d/l (fetch-all-deps (access-dlist :dependencies (state:pfile))
-                                (access-dlist :egg-dependencies (state:pfile))
-                                '()
-                                (access-dlist :lib-dependencies (state:pfile))))
+  (define pdeps (union-by* dep=? (access-dlist :dependencies (state:pfile))
+                                 (if gather-all (access-dlist :test-dependencies (state:pfile)) '())))
+  (define edeps (union-by* dep=? (access-dlist :egg-dependencies (state:pfile))
+                                 (if gather-all (access-dlist :egg-test-dependencies (state:pfile)) '())))
+  (define e/d/l (fetch-all-deps pdeps edeps '() (access-dlist :lib-dependencies (state:pfile))))
 
   ; figure out what eggs and deps we actually need to get
   ; again, required-* is the intersection of all pontiff files' declarations
