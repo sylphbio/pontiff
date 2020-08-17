@@ -23,7 +23,7 @@
 (import prototype)
 (import util)
 
-(define pstate #f)
+(define pstate '())
 
 ; XXX TODO FIXME come up with some way of simply embedding the version from pontiff.ix into the binary
 ; so I don't have to worry about updating it in two places
@@ -157,8 +157,8 @@
                     :dfile ,dfile
                     :env ,env))))
 
-(define (access kw) (and pstate ((^. (keyw kw)) pstate)))
-(define (access-u kw) (and pstate ((^.v (keyw kw)) pstate)))
+(define (access kw) (and (not (null? pstate)) ((^. (keyw kw)) pstate)))
+(define (access-u kw) (and (not (null? pstate)) ((^.v (keyw kw)) pstate)))
 
 (define (working-path)  (access-u :working-path))
 (define (build-dir)     (access-u :build-dir))
