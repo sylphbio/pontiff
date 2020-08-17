@@ -56,6 +56,18 @@
                        "-"
                        suffix)))
 
+; XXX this expects your imports to be named the same as the imported project itself
+; which is... probably a good idea but I don't enforce it so it could be a gotcha
+(define (dep-names)
+  (nub* (map (^.v (keyw :name))
+             (<> ((^.v (keyw :dependencies)) (state:pfile))
+                 (ix:unwrap (or ((^. (keyw :test-dependencies)) (state:pfile)) (ix:wrap 'list '())))))))
+
+(define (egg-dep-names)
+  (nub* (map ix:unwrap
+             (<> (ix:unwrap (or ((^. (keyw :egg-dependencies)) (state:pfile)) (ix:wrap 'list '())))
+                 (ix:unwrap (or ((^. (keyw :egg-test-dependencies)) (state:pfile)) (ix:wrap 'list '())))))))
+
 ; XXX FIXME because of a very annoying oversight in ix lens, I can't easily support key addition
 ; or, at least I don't wnat to bother rn
 (define (merge-mfile modules artifact static)
@@ -144,12 +156,8 @@
              (let* ((imports (nub* (flatten (map (lambda (i) (map parse-import-spec (cdr i)))
                                                  (filter* isimport? body)))))
                     (system-libs (filter* (lambda (i) (or (memq i '(scheme r5rs r4rs srfi-4)) (module-of 'chicken i))) imports))
-                    ; XXX FIXME this creates the annoying situation that the dep name must match the imported module names
-                    ; perhaps gather should pull down a list of library artifact roots and store that somewhere?
-                    (dep-names (map ix:unwrap ((^.v (keyw :deps)) (state:dfile))))
-                    (pontiff-libs (filter* (lambda (i) (any* (lambda (d) (module-of d i)) dep-names)) imports))
-                    (egg-names (map ix:unwrap ((^.v (keyw :eggs)) (state:dfile))))
-                    (egg-libs (filter* (lambda (i) (any* (lambda (e) (module-of e i)) egg-names)) imports))
+                    (pontiff-libs (filter* (lambda (i) (any* (lambda (d) (module-of d i)) (dep-names))) imports))
+                    (egg-libs (filter* (lambda (i) (any* (lambda (e) (module-of e i)) (egg-dep-names))) imports))
                     ; I don't do anything with the other lists but could be nice to sanity check things?
                     (local-imports (difference* imports system-libs pontiff-libs egg-libs)))
                    (ix:build 'pontiff:module :name m :path path :file-hash (<> "sha1:" (sha1sum (module-path m)))

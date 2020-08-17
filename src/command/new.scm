@@ -45,6 +45,7 @@
                      :tests `(,(ix:build 'pontiff:executable :name 'unit :root 'test.unit)
                               ,(ix:build 'pontiff:executable :name 'integration :root 'test.integration))
                      :dependencies '()
+                     :test-dependencies '()
                      :resolver 'alice
                      :lib-dependencies '()
                      :egg-dependencies '()

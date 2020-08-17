@@ -77,11 +77,12 @@
         (symlink-files link-path "include" (glob (make-pathname `(,pwd "include") "*")))))
 
 (define (init)
+  (set-buffering-mode! (current-output-port) :full)
+
   ; set up ix prototypes
   (ix:register! prototypes)
 
   (define pwd (current-directory))
-  (set-buffering-mode! (current-output-port) :full)
 
   ; load pfile, if it exists
   (define pfile (let ((pf (load-file pfilename)))

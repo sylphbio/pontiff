@@ -40,8 +40,8 @@
                        :dependencies (list (sum symbol (sexp pontiff:repository) (sexp pontiff:directory)))
                        :test-dependencies (optional (list (sum symbol (sexp pontiff:repository) (sexp pontiff:directory))))
                        :resolver (enum alice) ; highly advanced technology
-                       :lib-dependencies (list symbol)
-                       :egg-dependencies (list symbol)
+                       :lib-dependencies (optional (list symbol))
+                       :egg-dependencies (optional (list symbol))
                        :egg-test-dependencies (optional (list symbol))
                        :egg-resolver (enum chicken-install))) ; XXX write my own resolver
 
