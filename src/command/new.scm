@@ -47,7 +47,8 @@
                      :dependencies '()
                      :resolver 'alice
                      :lib-dependencies '()
-                     :egg-dependencies '(test)
+                     :egg-dependencies '()
+                     :egg-test-dependencies '(test)
                      :egg-resolver 'chicken-install))
 
 ; XXX consider restructuring as, or at least to return, either
