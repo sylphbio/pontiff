@@ -23,8 +23,9 @@
                                          (not (equal? file "deps.ix"))))
                      (directory)))
 
-  (when deps (delete-file "deps.ix")
-             (delete-directory "deps" #t))
+  (when deps (delete-file* "deps.ix")
+             (when (directory-exists? "deps")
+                   (delete-directory "deps" #t)))
 
   (change-directory (state:working-path)))
 
