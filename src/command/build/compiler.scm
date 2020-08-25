@@ -111,12 +111,12 @@
   ; I need to think hard and test this tho it is fraught conceptually
   (define prologue-clause `("-prologue" ,(prologue-path)))
 
-  (define dyn/stat-clauses (if static
-                               `("-static" "-module-registration")
-                               `("-dynamic")))
+  (define static-clause (if static `("-static" "-module-registration") `()))
 
-  (define args `("chicken" ,infile "-output-file" ,outfile ,@user-flags ,@(cscflags)
-                 ,@unit-clauses ,@feature-clauses ,@dyn/stat-clauses ,@prologue-clause ,@uses-clauses))
+  (define library-clause (if (and library dynamic) `("-dynamic") `()))
+
+  (define args `("chicken" ,infile "-output-file" ,outfile ,@user-flags ,@(cscflags) ,@unit-clauses
+                 ,@feature-clauses ,@static-clause ,@library-clause ,@prologue-clause ,@uses-clauses))
 
   (when verbose (printf "~A\n\n" (string-intersperse (cons binenv args))))
   (process-run binenv args (state:env)))
